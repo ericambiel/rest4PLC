@@ -1,0 +1,17 @@
+{
+    "env": {
+      "node": true
+    },
+    "root": true,
+    "parser": "@typescript-eslint/parser",
+    "plugins": [
+      "@typescript-eslint"
+    ],
+    "extends": [
+      "plugin:shopify/esnext"
+    ],
+    "rules": {
+      "no-console": 0, // Remember, this means error!
+      "no-process-env": 0
+     }
+  }
