@@ -21,7 +21,7 @@ class ConsoleLog {
       case 'info': console.info(`${now} [INFO]${message}`); break;
       case 'error': console.error(`${now} [ERROR]${message}`); break;
       case 'warn': console.warn(`${now} [WARN]${message}`); break;
-      case 'debug': console.debug(`${now} [WARN]${message}`); break;
+      case 'debug': console.debug(`${now} [DEBUG]${message}`); break;
       default: console.log(`${now} ${message}`);
     }
   }

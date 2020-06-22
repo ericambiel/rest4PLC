@@ -1,23 +1,16 @@
-#!/usr/bin/env node
-
-/**
- * Module dependencies.
- */
-
 import http from 'http';
 
 import app from '../../app';
+import ConsoleLog from '../../libs/ConsoleLog';
 
-const debug = require('debug')('api:server');
+const debug = require('debug')('api:debug'); // TODO: Verificar como usar 
 
 /**
  * Get port from environment and store in Express.
  */
-const port = process.env.API_REST_PORT!;
+const _port = normalizePort(process.env.API_REST_PORT!);
 
-normalizePort(port);
-
-app.set('porta', port);
+app.set('porta', _port);
 
 /**
  * Create HTTP server.
@@ -28,25 +21,26 @@ const server = http.createServer(app);
  * Listen on provided port, on all network interfaces.
  */
 server.listen(process.env.API_REST_PORT);
-server.on('erro', onError);
-server.on('escutando', onListening);
+server.on('error', onError);
+server.on('listening', onListening);
 
-console.log(`API Rest4PLC rodando em porta: ${process.env.API_REST_PORT}`);
+new ConsoleLog('info').printConsole(`[START] - API Rest4PLC rodando em porta: ${process.env.API_REST_PORT}`);
+debug('Debug');
 
 /**
  * Normalize a port into a number, string, or false.
  */
 function normalizePort(val: string) {
-  const porta = parseInt(val, 10);
+  const port = parseInt(val, 10);
 
-  if (isNaN(porta)) {
+  if (isNaN(port)) {
     // named pipe
     return val;
   }
 
-  if (porta >= 0) {
+  if (port >= 0) {
     // port number
-    return porta.toString();
+    return port.toString();
   }
 
   return 'false';
@@ -60,16 +54,18 @@ function onError(error: any) {
     throw error;
   }
 
-  const bind = typeof port === 'string' ? `Pipe ${port}` : `Porta ${port}`;
+  const bind = typeof _port === 'string' 
+    ? `Pipe ${_port}`
+    : `Porta ${_port}`;
 
   // handle specific listen errors with friendly messages
   switch (error.code) {
     case 'EACCES':
-      console.error(`${bind} requer elevação de privilégios`);
+      new ConsoleLog('erro').printConsole(`[START] - ${bind} requer elevação de privilégios`);
       process.exit(1);
       break;
     case 'EADDRINUSE':
-      console.error(`${bind} já esta em uso`);
+      new ConsoleLog('erro').printConsole(`[START] - ${bind} já esta em uso`);
       process.exit(1);
       break;
     default:
