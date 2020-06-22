@@ -6,6 +6,8 @@ require('dotenv-safe').config();
 // });
 // require('./lib/passport'); // Verificar se usuário é valido/BD
 
+const path = require('path');
+
 const createError = require('http-errors');
 const express = require('express');
 const cookieParser = require('cookie-parser');
@@ -42,14 +44,14 @@ mongoose.connection.on('error', (err) => {
 });
 
 // view engine setup
-// app.set('views', path.join(__dirname, 'views'));
-app.set('view engine', 'jade');
+app.set('views', path.join(__dirname, 'views'));
+app.set('view engine', 'pug');
 
 // app.use(logger('dev'));
 app.use(express.json());
 app.use(express.urlencoded({extended: false}));
 app.use(cookieParser());
-// app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public')));
 
 
 // Caminhos das Rotas

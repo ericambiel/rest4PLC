@@ -3,7 +3,7 @@ import http from 'http';
 import app from '../../app';
 import ConsoleLog from '../../libs/ConsoleLog';
 
-const debug = require('debug')('api:debug'); // TODO: Verificar como usar 
+// const debug = require('debug')('[DEBUG][START]'); // TODO: Verificar como usar 
 
 /**
  * Get port from environment and store in Express.
@@ -23,9 +23,6 @@ const server = http.createServer(app);
 server.listen(process.env.API_REST_PORT);
 server.on('error', onError);
 server.on('listening', onListening);
-
-new ConsoleLog('info').printConsole(`[START] - API Rest4PLC rodando em porta: ${process.env.API_REST_PORT}`);
-debug('Debug');
 
 /**
  * Normalize a port into a number, string, or false.
@@ -50,11 +47,11 @@ function normalizePort(val: string) {
  * Event listener for HTTP server "error" event.
  */
 function onError(error: any) {
-  if (error.syscall !== 'escutando') {
+  if (error.syscall !== 'listening') {
     throw error;
   }
 
-  const bind = typeof _port === 'string' 
+  const bind = typeof _port === 'string'
     ? `Pipe ${_port}`
     : `Porta ${_port}`;
 
@@ -78,7 +75,7 @@ function onError(error: any) {
  */
 function onListening() {
   const bind = typeof server.address() === 'string'
-    ? `pipe ${server.address()}`
-    : `porta ${server.address()}`;
-  debug(`Escultando em: ${bind}`);
+    ? `pipe: ${server.address()}`
+    : `endereço: ${JSON.stringify(server.address()!)}`;
+  new ConsoleLog('info').printConsole(`[START] - API Rest4PLC rodando em ${bind}`);
 }

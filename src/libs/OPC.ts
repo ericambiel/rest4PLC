@@ -1,13 +1,14 @@
 import {EventEmitter} from 'events';
 
-import opc = require('node-opc-da');
+const opc = require('node-opc-da');
+const dcom = require('node-dcom');
 
 // const dcom = require('node-dcom');
 
-const {ComServer, Session, Clsid} = opc.dcom;
+const {ComServer, Session, Clsid} = dcom;
 const {OPCServer} = opc;
 
-export class OPC {
+export default class OPC {
 
     /**
      *
@@ -19,9 +20,9 @@ export class OPC {
      * @param {object} [opts]
      * @returns {Promise<{comServer:ComServer, opcServer:OPCServer}>}
      */
-  async createServer(address, domain, user, pass, clsid, opts) {
+  async createServer(address: String, domain:String, user:String, pass:String, clsid:String, opts:any) {
     try {
-      EventEmitter.call(this);
+      // EventEmitter.call(this);
       let session = new Session();
       session = session.createSession(domain, user, pass);
       session.setGlobalSocketTimeout(7000);
