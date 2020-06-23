@@ -1,14 +1,16 @@
 // const router = require('express').Router();
 import {Router, Request, Response} from 'express';
-import OPCController from '../../controllers/OPCController';
 
+import OPCController from '../../controllers/OPCController';
+// import OPC from '../../../libs/OPC';
 const router = Router();
+
+const controller = new OPCController();
 
 router.get(
     '/',
     async (req: Request, res: Response, next: any) => {
       try {
-        const controller = new OPCController('10.0.0.100', 'DESKTOP-ETF6IMT', 'Administrador', '1234567890', 'A05BB6D6-2F8A-11D1-9BB0-080009D01446', null);
 
         // const opc = new OPC();
         // // 563D903B-03B2-4641-89D0-A99E6C5A6C2C => RSLinx Enterprise Runtime
@@ -41,7 +43,7 @@ router.get(
 
         // await opcSyncIO.write([{handle: itemsGroup[0][1].serverHandle, type: 9, value: 50}])
 
-        res.json(controller.getAllTree);
+        res.json(await controller.listItemsOnPLC());
       } catch (err) { next(err); }
     },
 );
