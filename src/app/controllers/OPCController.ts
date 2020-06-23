@@ -1,11 +1,15 @@
-import OPC from '../../libs/OPC';
+// import OPC from '../../libs/OPC';
+const OPC = require('../../libs/OPC');
 
 export default class OPCController {
-  private opc: OPC;
+  public opc: any;
+  private lastItemsListing: [{itemID: String}] | null;
 
   constructor() {
     try {
+      this.lastItemsListing = null;
       this.opc = new OPC();
+      console.log(process.env.OPCDA_ADDRESS);
       this.opc.createServerConn(
             process.env.OPCDA_ADDRESS!,
             process.env.OPCDA_DOMAIN!,
@@ -14,12 +18,21 @@ export default class OPCController {
             process.env.OPCDA_CLSID!,
             null,
         );
+
     } catch (err) { throw Error(err.message); }
   }
 
   async listItemsOnPLC() {
     try {
-      return await this.opc.getAllTree(); // Problema na criação do OPC
+      this.lastItemsListing = await this.opc.getAllFlat();
+      return await this.opc.getAllTree();
+    } catch (err) { throw Error(err.message); }
+  }
+
+  async createGroupLastItemsListing(name: String) {
+    try {
+      await this.opc.makeGroupItems(name, this.lastItemsListing!);
+      await this.opc.getValuesSync(this.opc.itemsGroup);
     } catch (err) { throw Error(err.message); }
   }
 }

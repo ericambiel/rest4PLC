@@ -4,6 +4,6 @@
   "ignore": [],
   "exec": "node --inspect -r ts-node/register",
   "env": {
-    "DEBUG":"*"
+    "NODE_DEBUG":["node-opc-da", "node-opca-da"]
   }
 }

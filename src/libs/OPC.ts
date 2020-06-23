@@ -1,4 +1,4 @@
-// import {EventEmitter} from 'events';
+import {EventEmitter} from 'events';
 
 const opc = require('node-opc-da');
 const dcom = require('node-dcom');
@@ -11,7 +11,7 @@ const {OPCServer} = opc;
 // 563D903B-03B2-4641-89D0-A99E6C5A6C2C => RSLinx Enterprise Runtime
 // A05BB6D6-2F8A-11D1-9BB0-080009D01446 => RSLinx Gateway
 
-export default class OPC {
+export default class OPC extends EventEmitter {
   itemsGroup = [];
   private opcBrowser: any;
   private opcGroup: any;
@@ -31,7 +31,7 @@ export default class OPC {
      */
   async createServerConn(address: String, domain: String, user: String, pass: String, clsid: String, opts:[object]|null) {
     try {
-      // EventEmitter.call(this);
+      EventEmitter.call(this);
       let session = new Session();
       session = session.createSession(domain, user, pass);
       session.setGlobalSocketTimeout(7000);
@@ -39,7 +39,8 @@ export default class OPC {
       const comServer = new ComServer(new Clsid(clsid), address, session);
 
       console.log(`debug`);
-      await comServer.init();
+      console.log(await comServer.init());
+      // await comServer.init();
       const comObject = await comServer.createInstance();
 
       const opcServer = new OPCServer(opts);
@@ -50,7 +51,7 @@ export default class OPC {
   }
 
   private async start(comServer: Object, opcServer: any) {
-    this.opcBrowser = await opcServer.rs();
+    this.opcBrowser = await opcServer.getBrowser();
 
     this._comServer = comServer;
     this._opcServer = opcServer;
@@ -62,9 +63,12 @@ export default class OPC {
     } catch (err) { throw Error(err.message); }
   }
 
-  async getAllFlat(): Promise<Object> {
+  async getAllFlat(): Promise<[{itemID: String}]> {
     try {
-      return await this.opcBrowser.browseAllFlat();
+      const listFoundItems = await this.opcBrowser.browseAllFlat();
+      return listFoundItems.map((item: [String]) => {
+        return ({itemID: item});
+      });
     } catch (err) { throw Error(err.message); }
   }
 
@@ -72,9 +76,8 @@ export default class OPC {
      *
      * @param {String} groupName Nome do grupo de Itens a ser formado
      * @param {Array} items Itens a serem colocado no grupo, obter por getAllTree|getAllFlat
-     * @returns {Object} Grupo contendo valores dos itens para serem lidos.
      */
-  async makeGroupItems(groupName: String, items: [{itemID: String, clientHandle: number|null}]) {
+  async makeGroupItems(groupName: String, items: [{itemID: String, clientHandle: number}] | [{itemID: String}]) {
     try {
       this.opcGroup = await this._opcServer.addGroup(groupName);
       this.opcItemManager = await this.opcGroup.getItemManager();

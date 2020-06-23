@@ -8,7 +8,7 @@ const router = Router();
 const controller = new OPCController();
 
 router.get(
-    '/',
+    '/list_tree_opc_items',
     async (req: Request, res: Response, next: any) => {
       try {
 
@@ -46,6 +46,15 @@ router.get(
         res.json(await controller.listItemsOnPLC());
       } catch (err) { next(err); }
     },
+);
+
+router.get(
+  '/read_group_itens',
+  async (req: Request, res: Response, next: any) => {
+    try {
+      res.json(await controller.createGroupLastItemsListing('Teste'));
+    } catch (err) { next(err); }
+  },
 );
 
 module.exports = router;
