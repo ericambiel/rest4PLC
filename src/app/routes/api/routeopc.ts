@@ -42,8 +42,8 @@ router.get(
 
 
         // await opcSyncIO.write([{handle: itemsGroup[0][1].serverHandle, type: 9, value: 50}])
-
-        res.json(await controller.listItemsOnPLC());
+        const {connName} = req.body.opcServer;
+        res.json(await controller.listAllServerItems(connName));
       } catch (err) { next(err); }
     },
 );
@@ -52,9 +52,42 @@ router.get(
   '/read_group_itens',
   async (req: Request, res: Response, next: any) => {
     try {
-      res.json(await controller.createGroupLastItemsListing('Teste'));
+      const {connName, groupName} = req.body.opcServer;
+      res.json(await controller.readGroupItems(connName, groupName));
     } catch (err) { next(err); }
   },
 );
+
+router.get(
+  '/list_all_opc_groups',
+  async (req: Request, res: Response, next: any) => {
+    try {
+      const {connName} = req.body.opcServer;
+      res.json(await controller.listAllConnGroups(connName));
+    } catch (err) { next(err); }
+  },
+);
+
+router.post(
+  '/create_connection_server_opcda',
+  async (req: Request, res: Response, next: any) => {
+    try {
+      const {connName} = req.body.opcServer;
+      await controller.connectToNewServer(connName);
+      res.json('Conexão sendo criada...');
+    } catch (err) { next(err); }
+  },
+);
+
+router.post(
+  '/create_group_itens',
+  async (req: Request, res: Response, next: any) => {
+    try {
+      const {connName, groupName, items} = req.body.opcServer;
+      res.json(await controller.createGroupItensConn(connName, groupName, items));
+    } catch (err) { next(err); }
+  },
+);
+
 
 module.exports = router;
