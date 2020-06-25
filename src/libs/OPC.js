@@ -77,15 +77,6 @@ export default class OPCDA extends EventEmitter {
     } catch (err) { throw Error(err); }
   }
 
-  // /**
-  //  * @returns {Promise<Object>}
-  //  */
-  // async getAllTree() {
-  //   try {
-  //     return await this._opcBrowser.browseAllTree();
-  //   } catch (err) { throw Error(err.message); }
-  // }
-
   /**
    * @returns {Promise<[{itemID: String}]>}
    */
@@ -126,7 +117,7 @@ export default class OPCDA extends EventEmitter {
     try {
       const opcGroupManager = await this._opcServer.getGroupByName(groupName);
       // const opcItemManager = await opcGroupManager.getItemManager();
-      // console.log(await opcGroupManager.);
+      // console.log(await opcGroupManager.getState());
       const opcSyncIO = await opcGroupManager.getSyncIO();
       // OPC_DS_CACHE ( 1 ), OPC_DS_DEVICE ( 2 ), OPC_DS_UNKNOWN ( 0 );
       return await opcSyncIO.read([1], [itemsGroup[3][1].serverHandle]);
