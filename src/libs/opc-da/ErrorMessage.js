@@ -1,9 +1,10 @@
+import ConsoleLog from "../ConsoleLog";
 
 export default class ErrorMessage {
 
   /**
-  * Retorna erro traduzido
-  * @param {Number} errorCode
+  * Retorna mensagem de erro de acordo com código informado.
+  * @param {String} errorCode Código do error em HexDecimal
   */
   getErrorMessage(errorCode) {
     let msgText;
@@ -70,5 +71,13 @@ export default class ErrorMessage {
         msgText = "Unknown error!";
     }
     return `${String(errorCode)} - ${msgText}`;
+  }
+
+  /**
+   * Imprime mensagem de erro de acordo com código informado.
+   * @param {String} errorCode Código do error em HexDecimal
+   */
+  getErrorMessageAndPrint(errorCode) {
+    new ConsoleLog('error').printConsole(this.getErrorMessage(errorCode));
   }
 }

@@ -1,11 +1,15 @@
 import {EventEmitter} from 'events';
 
-import {Session, ComServer, Clsid} from 'node-dcom';
-// import {ComObject} from 'node-dcom/dcom/core/comobject';
-import {OPCServer} from 'node-opc-da';
+// eslint-disable-next-line no-unused-vars
+import ComObject from 'node-dcom/dcom/core/comobject';
+import Session from 'node-dcom/dcom/core/session';
+import ComServer from 'node-dcom/dcom/core/comserver';
+import Clsid from 'node-dcom/dcom/core/clsid';
+import OPCServer from 'node-opc-da/src/opcServer';
 
 import ConsoleLog from '../ConsoleLog';
 
+import ErrorMessage from './ErrorMessage';
 // eslint-disable-next-line no-unused-vars
 import Group from './Group';
 
@@ -24,8 +28,8 @@ export default class Server extends EventEmitter {
   /** @type {ComObject} */
   comObject;
 
-  /** @type {Group} */
-  group;
+//   /** @type {Group} */
+//   group;
 
   /** @type {Map<String, Group>} */
   groups;
@@ -41,6 +45,9 @@ export default class Server extends EventEmitter {
 
   /** @type {{address:String, domain:String username:String, password: String, clsid: String, timeout: 7000, opts:[] | null}} */
   connOpts;
+
+  /** @type {ErrorMessage} */
+  errorMessage;
   // const isVerbose = (config.verbose === 'on' || config.verbose === 'off') ? (config.verbose === 'on') : RED.settings.get('verbose');
 
    /**
@@ -50,11 +57,13 @@ export default class Server extends EventEmitter {
    * @param {String} username      Usuário de rede com acesso OPC ao servidor.
    * @param {String} password      Senha de usuário.
    * @param {String} clsid         CLSID do servidor OPC no host de destino.
-   * @param {object} [opts]   Opções de configuração adicionais.
+   * @param {object[]} [opts]   Opções de configuração adicionais.
    */
   constructor(address, domain, username, password, clsid, opts) {
     super();
     EventEmitter.call(this);
+
+    this.errorMessage = new ErrorMessage();
 
     this.connOpts = {
       address,
@@ -75,18 +84,18 @@ export default class Server extends EventEmitter {
   }
 
   async onComServerError(err) {
-    new ConsoleLog('error').printConsole(this.errorMessage(err));
+    new ConsoleLog('error').printConsole(`[SERVER] ${this.errorMessage(err)}`);
     switch (err) {
-      case 0x00000005:
+      case 0x00000005: this.errorMessage.getErrorMessageAndPrint(err);
         return;
-      case 0xC0040010:
+      case 0xC0040010: this.errorMessage.getErrorMessageAndPrint(err);
         return;
-      case 0x80040154:
+      case 0x80040154: this.errorMessage.getErrorMessageAndPrint(err);
         return;
-      case 0x00000061:
+      case 0x00000061: this.errorMessage.getErrorMessageAndPrint(err);
         return;
       default:
-        new ConsoleLog('warn').printConsole("Trying to reconnect...");
+        new ConsoleLog('warn').printConsole('[SERVER] - Trying to reconnect...');
         await this.setup().catch(this.onComServerError);
     }
   }
@@ -99,37 +108,42 @@ export default class Server extends EventEmitter {
   }
 
   async setup() {
+    // Prepara sessão para conexão com servidor COM
     this.comSession = new Session();
     this.comSession = this.comSession.createSession(this.connOpts.domain, this.connOpts.username, this.connOpts.password);
     this.comSession.setGlobalSocketTimeout(this.connOpts.timeout);
 
+    // Cria conexão COM com servidor Microsoft
     this.comServer = new ComServer(new Clsid(this.connOpts.clsid), this.connOpts.address, this.comSession);
-          // this.comServer.on('error', onComServerError);
 
-    this.comServer.on('e_classnotreg', () => {
-      new ConsoleLog('error').printConsole("opc-da.error.classnotreg");
-    });
+    // this.comServer.on('e_classnotreg', () => {
+    //   new ConsoleLog('error').printConsole("opc-da.error.classnotreg");
+    // });
 
-    this.comServer.on("disconnected", () => {
-      this.onComServerError(ConsoleLog('error').printConsole("opc-da.error.disconnected"));
-    });
+    // this.comServer.on("disconnected", () => {
+    //   this.onComServerError(ConsoleLog('error').printConsole("opc-da.error.disconnected"));
+    // });
 
-    this.comServer.on("e_accessdenied", () => {
-      new ConsoleLog('error').printConsole("opc-da.error.accessdenied");
-    });
+    // this.comServer.on("e_accessdenied", () => {
+    //   new ConsoleLog('error').printConsole("opc-da.error.accessdenied");
+    // });
+
+    this.comServer.on('error', this.onComServerError);
 
     await this.comServer.init();
 
     this.comObject = await this.comServer.createInstance();
 
+    // Cria conexão OPC-DA com servidor COM
     this.opcServer = new OPCServer();
     await this.opcServer.init(this.comObject);
+    // Caso já exista algum grupo salvo, dar carga DB aqui
     for (const entry of this.groups.entries()) {
       const name = entry[0];
       const group = entry[1];
-      const opcGroup = await this.opcServer.addGroup(name, group.opcConfig);
+      const oPCGroupStateManager = await this.opcServer.addGroup(name, group.opcConfig);
       new ConsoleLog('info').printConsole(`setup for group: ${name}`);
-      await group.updateInstance(opcGroup);
+      await group.setup(oPCGroupStateManager);
     }
 
     this.updateStatus('online');
@@ -138,24 +152,24 @@ export default class Server extends EventEmitter {
   async cleanup() {
     try {
       if (this.isOnCleanUp) { return; }
-      new ConsoleLog('info').printConsole("Cleaning Up");
+      new ConsoleLog('info').printConsole('[SERVER] - Cleaning Up');
       this.isOnCleanUp = true;
       // cleanup this.groups first
-      new ConsoleLog('info').printConsole("Cleaning this.groups...");
+      new ConsoleLog('info').printConsole('[SERVER] - Cleaning this.groups...');
       for (const group of this.this.groups.values()) {
         // await group.cleanUp();
       }
-      new ConsoleLog('info').printConsole("Cleaned Groups");
+      new ConsoleLog('info').printConsole('[SERVER] - Cleaned Groups');
       if (this.opcServer) {
         // await this.opcServer.end();
         this.opcServer = null;
       }
-      new ConsoleLog('info').printConsole("Cleaned this.opcServer");
+      new ConsoleLog('info').printConsole('[SERVER] - Cleaned this.opcServer');
       if (this.comSession) {
         await this.comSession.destroySession();
         this.comServer = null;
       }
-      new ConsoleLog('info').printConsole("Cleaned session. Finished.");
+      new ConsoleLog('info').printConsole('[SERVER] - Cleaned session. Finished.');
       this.isOnCleanUp = false;
     } catch (err) {
       // eslint-disable-next-line no-warning-comments
@@ -163,7 +177,7 @@ export default class Server extends EventEmitter {
       this.isOnCleanUp = false;
       const error = err || err.stack;
       // eslint-disable-next-line object-shorthand
-      new ConsoleLog('error').printConsole(`Error cleaning up server: ${error}`, {error: error});
+      new ConsoleLog('error').printConsole(`[SERVER] - Error cleaning up server: ${error}`, {error: error});
     }
 
     this.updateStatus('unknown');
@@ -174,7 +188,7 @@ export default class Server extends EventEmitter {
 
     /* if reconnect was already called, do nothing if reconnect was never called, try to restart the session */
     if (!this.reconnecting) {
-      console.log("cleaning up");
+      new ConsoleLog('info').printConsole('[SERVER] - cleaning up');
       this.reconnecting = true;
       await this.cleanup();
       await this.setup().catch(this.onComServerError);
@@ -187,33 +201,44 @@ export default class Server extends EventEmitter {
   }
 
   /**
-   *
-   * @param {Group} group
+   * Cria novo grupo. Gera nova instancia em MAP de Server e adiciona também em OPCServer
+   * @param {Object} grpConfig
+   * @param {String} grpConfig.name Nome do Grupo
+   * @param {Server} grpConfig.server Instância da classe Server.
+   * @param {[]} grpConfig.vartable Lista com itens a serem inseridos, adquira com BrowseFlat
+   * @param {boolean} [grpConfig.validate=false]
+   * @param {boolean} [grpConfig.active=true]
+   * @param {Number} [grpConfig.updateRate=1000]
+   * @param {Number} [grpConfig.timeBias=0]
+   * @param {Number} [grpConfig.deadband=0]
    */
-  createGroup(group) {
-    const opcGroup = await this.opcServer.addGroup(group.opcConfig.name, group.opcConfig);
-    console.log(`setup for group: ${group.config.name}`);
-    await group.updateInstance(opcGroup);
+  createGroup(grpConfig) {
+    const group = new Group(grpConfig);
+
+    const oPCGroupStateManager = await this.opcServer.addGroup(grpConfig.name, grpConfig);
+    new ConsoleLog('info').printConsole(`[SERVER] - setup for group: ${group.config.name}`);
+    await group.setup(oPCGroupStateManager);
     group.onServerStatus(this.status);
   }
 
-  /**
-   *
-   * @param {Group} group
-   */
-  registerGroup(group) {
-    if (this.groups.has(group.config.name)) {
-      new ConsoleLog('warn').printConsole("opc-da.warn.dupgroupname");
-    }
+//   /**
+//    *
+//    * @param {Group} group
+//    */
+//   registerGroup(group) {
+//     if (this.groups.has(group.config.name)) {
+//       new ConsoleLog('warn').printConsole('[SERVER] - Grupo já existe, foi sobrescrito');
+//     }
 
-    this.groups.set(group.config.name, group);
-  }
+//     this.groups.set(group.config.name, group);
+//   }
 
   /**
    *
    * @param {Group} group
    */
   unregisterGroup(group) {
+    // Somente deleta do MAP da instancia em Server mas não deleta de OPCServer
     this.groups.delete(group.config.name);
   }
 }

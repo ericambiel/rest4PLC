@@ -16,9 +16,6 @@ import Server from './Server';
 
 export default class Group extends EventEmitter {
 
-  /** @type {Server} */
-  server;
-
   /** @type {OPCGroupStateManager} */
   opcGroupMgr;
 
@@ -52,20 +49,16 @@ export default class Group extends EventEmitter {
   /** @type {Number} */
   updateRate;
 
-  /** @type {Number} */
-  deadband;
-
   /** @type {boolean} */
   validate;
 
   /** @type {boolean} */
   onCleanUp;
 
-  /** @type {{server: String, updaterate: String, deadband: String, active: boolean, validate: boolean, vartable: []}} */
+  /** @type {{name: String, server: Server, updaterate: String, deadband: String, active: boolean, validate: boolean, vartable: []}}
+   * vartable Lista com itens do grupo a ser criado.
+   * */
   config;
-
-  /** @type {{active: boolean, updateRate: Number, timeBias: Number, deadband: Number}} */
-  opcConfig;
 
   /** @type {String} */
   status;
@@ -77,20 +70,18 @@ export default class Group extends EventEmitter {
   MIN_UPDATE_RATE = 100;
 
   /**
-   * @param {object} config
-   * @param {string} config.server
-   * @param {string} config.updaterate
-   * @param {string} config.deadband
+   * @param {Object} config
+   * @param {Server} config.server Instância de um servidor OPC-DA criado.
    * @param {boolean} config.active
    * @param {boolean} config.validate
    * @param {object[]} config.vartable
-   * @param {Server} server Instancia de um servidor OPC-DA criado.
    */
-  constructor(server, config) {
+  constructor(config) {
     super();
     EventEmitter.call(this);
 
-    this.opcServer = server;
+    this.updateRate = config.updateRate;
+    this.validate = config.validate;
 
     this.status = 'unknown';
 
@@ -101,29 +92,11 @@ export default class Group extends EventEmitter {
     this.connected = false;
     this.readDeferred = 0;
     this.oldItems = {};
-    this.updateRate = 1000;
-    this.deadband = 0;
-    this.validate = false;
     this.onCleanUp = false;
 
     this.config = config;
-    this.opcConfig = {
-      active: config.active,
-      updateRate: this.updateRate,
-      timeBias: 0,
-      deadband: this.deadband || 0,
-    };
   }
 
-//     /**
-//      * @param {object} config
-//      * @param {string} config.server
-//      * @param {string} config.updaterate
-//      * @param {string} config.deadband
-//      * @param {boolean} config.active
-//      * @param {boolean} config.validate
-//      * @param {object[]} config.vartable
-//      */
 //   OPCDAGroup(config) {
 
 //     // node.server = RED.nodes.getNode(config.server);
@@ -139,23 +112,12 @@ export default class Group extends EventEmitter {
      * @param {OPCGroupStateManager} newGroup
      */
   async setup(newGroup) {
-    // this.on('close', async function(done) {
-    //   server.unregisterGroup(this);
-    //   await cleanup();
-    //   new ConsoleLog('info').printConsole("group cleaned");
-    //   done();
-    // });
-    // const err = server.registerGroup(this);
-    // if (err) {
-    //   new ConsoleLog('error').printConsole(err, {error: err});
-    // }
-
     // if (this.server.getStatus() === 'online') {
     //   this.server.createGroup(this);
     // }
 
-    // Declarar um valor para time
     clearInterval(this.timer);
+
     try {
       this.opcGroupMgr = newGroup;
       this.opcItemMgr = await this.opcGroupMgr.getItemManager();
@@ -170,12 +132,12 @@ export default class Group extends EventEmitter {
 
       const items = this.config.vartable || [];
       if (items.length < 1) {
-        new ConsoleLog('warn').printConsole("opc-da.warn.noitems");
+        new ConsoleLog('warn').printConsole(['[GROUP] - Sem itens na criação de um grupo']);
       }
 
       const itemsList = items.map((item) => {
         // Verificar clientHandle para dar números aleatórios, lib já faz isso.
-        return {itemID: item.item, clientHandle: this.clientHandlePtr++};
+        return {itemID: item, clientHandle: this.clientHandlePtr++};
       });
 
       const resAddItems = await this.opcItemMgr.add(itemsList);
@@ -194,7 +156,6 @@ export default class Group extends EventEmitter {
       }
     } catch (err) {
       const error = err || err.stack;
-      new ConsoleLog('info').printConsole(err);
       new ConsoleLog('error').printConsole(`Error on setting up group: ${error}`);
     }
 
@@ -209,7 +170,33 @@ export default class Group extends EventEmitter {
       this.timer = setInterval(this.doCycle, this.updateRate);
       this.doCycle();
     }
+
+    // this.on('close', async function(done) {
+    //   server.unregisterGroup(this);
+    //   await cleanup();
+    //   new ConsoleLog('info').printConsole("group cleaned");
+    //   done();
+    // });
+
+    const error = this.registerGroupOnServer(this);
+    if (error) {
+      new ConsoleLog('error').printConsole(`[GROUP] ${error}`);
+    }
   }
+
+  /**
+   * Registra novo grupo em Server.groups (MAP)
+   * @private
+   * @param {this} group
+   */
+  registerGroupOnServer(group) {
+    if (this.config.server.groups.has(this.config.name)) {
+      new ConsoleLog('warn').printConsole('[SERVER] - Grupo já existe!');
+    } else {
+      this.config.server.set(this.config.name, group);
+    }
+  }
+
 
   async cleanup() {
     if (this.onCleanUp) { return; }
@@ -262,7 +249,7 @@ export default class Group extends EventEmitter {
         clearInterval(this.timer);
                 // since we have no good way to know if there is a network problem
                 // or if something else happened, restart the whole thing
-        this.server.reConnect();
+        this.config.server.reConnect();
       }
     }
   }
@@ -313,14 +300,14 @@ export default class Group extends EventEmitter {
     return this.status;
   }
 
-  /**
-   * @private
-   * @param {OPCGroupStateManager} newOpcGroup
-   */
-  async updateInstance(newOpcGroup) {
-    // await cleanup();
-    await this.setup(newOpcGroup);
-  }
+//   /**
+//    * @private
+//    * @param {OPCGroupStateManager} newOpcGroup
+//    */
+//   async updateInstance(newOpcGroup, config) {
+//     // await cleanup();
+//     await this.setup(newOpcGroup);
+//   }
 
   /**
   * Compares values for equality, includes special handling for arrays.
