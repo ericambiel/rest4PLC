@@ -10,16 +10,22 @@ import constants from 'node-opc-da/src/constants';
 
 import ConsoleLog from '../ConsoleLog';
 
+// eslint-disable-next-line no-unused-vars
+import Server from './Server';
+
 
 export default class Group extends EventEmitter {
 
-    /** @type {OPCGroupStateManager} */
+  /** @type {Server} */
+  server;
+
+  /** @type {OPCGroupStateManager} */
   opcGroupMgr;
 
-    /** @type {OPCItemManager} */
+  /** @type {OPCItemManager} */
   opcItemMgr;
 
-    /** @type {OPCSyncIO} */
+  /** @type {OPCSyncIO} */
   opcSyncIo;
 
   /** @type {Number} */
@@ -30,9 +36,6 @@ export default class Group extends EventEmitter {
 
   /** @type {[]} */
   clientHandles;
-
-  status;
-  timer;
 
   /** @type {boolean} */
   readInProgress;
@@ -64,30 +67,32 @@ export default class Group extends EventEmitter {
   /** @type {{active: boolean, updateRate: Number, timeBias: Number, deadband: Number}} */
   opcConfig;
 
+  /** @type {String} */
+  status;
+
+  /** @type {Timeout} */
+  timer;
+
   /** @type {Number} @const*/
   MIN_UPDATE_RATE = 100;
 
-  constructor() {
+  /**
+   * @param {object} config
+   * @param {string} config.server
+   * @param {string} config.updaterate
+   * @param {string} config.deadband
+   * @param {boolean} config.active
+   * @param {boolean} config.validate
+   * @param {object[]} config.vartable
+   * @param {Server} server Instancia de um servidor OPC-DA criado.
+   */
+  constructor(server, config) {
     super();
     EventEmitter.call(this);
-  }
 
-    /**
-     * @param {object} config
-     * @param {string} config.server
-     * @param {string} config.updaterate
-     * @param {string} config.deadband
-     * @param {boolean} config.active
-     * @param {boolean} config.validate
-     * @param {object[]} config.vartable
-     */
-  OPCDAGroup(config) {
+    this.opcServer = server;
 
-    // node.server = RED.nodes.getNode(config.server);
-
-    // if (!node.server || !node.server.registerGroup) {
-    //   return node.error(RED._("opc-da.error.missingconfig"));
-    // }
+    this.status = 'unknown';
 
     this.serverHandles = [];
     this.clientHandles = [];
@@ -101,17 +106,6 @@ export default class Group extends EventEmitter {
     this.validate = false;
     this.onCleanUp = false;
 
-    node.on('close', async function(done) {
-      node.server.unregisterGroup(this);
-      await cleanup();
-      new ConsoleLog('info').printConsole("group cleaned");
-      done();
-    });
-    const err = node.server.registerGroup(this);
-    if (err) {
-      new ConsoleLog('error').printConsole(err, {error: err});
-    }
-
     this.config = config;
     this.opcConfig = {
       active: config.active,
@@ -119,17 +113,47 @@ export default class Group extends EventEmitter {
       timeBias: 0,
       deadband: this.deadband || 0,
     };
-
-    if (node.server.getStatus() === 'online') {
-      node.server.createGroup(this);
-    }
   }
+
+//     /**
+//      * @param {object} config
+//      * @param {string} config.server
+//      * @param {string} config.updaterate
+//      * @param {string} config.deadband
+//      * @param {boolean} config.active
+//      * @param {boolean} config.validate
+//      * @param {object[]} config.vartable
+//      */
+//   OPCDAGroup(config) {
+
+//     // node.server = RED.nodes.getNode(config.server);
+
+//     // if (!node.server || !node.server.registerGroup) {
+//     //   return node.error(RED._("opc-da.error.missingconfig"));
+//     // }
+
+//   }
 
     /**
      * @private
      * @param {OPCGroupStateManager} newGroup
      */
   async setup(newGroup) {
+    // this.on('close', async function(done) {
+    //   server.unregisterGroup(this);
+    //   await cleanup();
+    //   new ConsoleLog('info').printConsole("group cleaned");
+    //   done();
+    // });
+    // const err = server.registerGroup(this);
+    // if (err) {
+    //   new ConsoleLog('error').printConsole(err, {error: err});
+    // }
+
+    // if (this.server.getStatus() === 'online') {
+    //   this.server.createGroup(this);
+    // }
+
     // Declarar um valor para time
     clearInterval(this.timer);
     try {
@@ -238,7 +262,7 @@ export default class Group extends EventEmitter {
         clearInterval(this.timer);
                 // since we have no good way to know if there is a network problem
                 // or if something else happened, restart the whole thing
-        node.server.reConnect();
+        this.server.reConnect();
       }
     }
   }
@@ -280,7 +304,6 @@ export default class Group extends EventEmitter {
     new ConsoleLog('error').printConsole(`Error reading items: ${err}` && (err.stack || err));
   }
 
-
   onServerStatus(status) {
     this.status = status;
     this.emit('__STATUS__', status);
@@ -295,12 +318,13 @@ export default class Group extends EventEmitter {
    * @param {OPCGroupStateManager} newOpcGroup
    */
   async updateInstance(newOpcGroup) {
-          // await cleanup();
+    // await cleanup();
     await this.setup(newOpcGroup);
   }
 
   /**
   * Compares values for equality, includes special handling for arrays.
+  * @private
   * @param {number|string|Array} first
   * @param {number|string|Array} second
   */

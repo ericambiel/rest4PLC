@@ -6,7 +6,8 @@ import {OPCServer} from 'node-opc-da';
 
 import ConsoleLog from '../ConsoleLog';
 
-// import Group from './Group';
+// eslint-disable-next-line no-unused-vars
+import Group from './Group';
 
 
 export default class Server extends EventEmitter {
@@ -23,8 +24,8 @@ export default class Server extends EventEmitter {
   /** @type {ComObject} */
   comObject;
 
-//   /** @type {Group} */
-//   group;
+  /** @type {Group} */
+  group;
 
   /** @type {Map<String, Group>} */
   groups;
@@ -127,7 +128,7 @@ export default class Server extends EventEmitter {
       const name = entry[0];
       const group = entry[1];
       const opcGroup = await this.opcServer.addGroup(name, group.opcConfig);
-      console.log(`setup for group: ${name}`);
+      new ConsoleLog('info').printConsole(`setup for group: ${name}`);
       await group.updateInstance(opcGroup);
     }
 
@@ -137,31 +138,30 @@ export default class Server extends EventEmitter {
   async cleanup() {
     try {
       if (this.isOnCleanUp) { return; }
-      console.log("Cleaning Up");
+      new ConsoleLog('info').printConsole("Cleaning Up");
       this.isOnCleanUp = true;
       // cleanup this.groups first
-      console.log("Cleaning this.groups...");
+      new ConsoleLog('info').printConsole("Cleaning this.groups...");
       for (const group of this.this.groups.values()) {
         // await group.cleanUp();
       }
-      console.log("Cleaned Groups");
+      new ConsoleLog('info').printConsole("Cleaned Groups");
       if (this.opcServer) {
-                  // await this.opcServer.end();
+        // await this.opcServer.end();
         this.opcServer = null;
       }
-      console.log("Cleaned this.opcServer");
+      new ConsoleLog('info').printConsole("Cleaned this.opcServer");
       if (this.comSession) {
         await this.comSession.destroySession();
         this.comServer = null;
       }
-      console.log("Cleaned session. Finished.");
+      new ConsoleLog('info').printConsole("Cleaned session. Finished.");
       this.isOnCleanUp = false;
     } catch (err) {
       // eslint-disable-next-line no-warning-comments
       // TODO I18N
       this.isOnCleanUp = false;
       const error = err || err.stack;
-      console.log(err);
       // eslint-disable-next-line object-shorthand
       new ConsoleLog('error').printConsole(`Error cleaning up server: ${error}`, {error: error});
     }
@@ -186,6 +186,10 @@ export default class Server extends EventEmitter {
     return this.status;
   }
 
+  /**
+   *
+   * @param {Group} group
+   */
   createGroup(group) {
     const opcGroup = await this.opcServer.addGroup(group.opcConfig.name, group.opcConfig);
     console.log(`setup for group: ${group.config.name}`);
@@ -193,15 +197,23 @@ export default class Server extends EventEmitter {
     group.onServerStatus(this.status);
   }
 
+  /**
+   *
+   * @param {Group} group
+   */
   registerGroup(group) {
-    if (this.this.groups.has(group.config.name)) {
+    if (this.groups.has(group.config.name)) {
       new ConsoleLog('warn').printConsole("opc-da.warn.dupgroupname");
     }
 
-    this.this.groups.set(group.config.name, group);
+    this.groups.set(group.config.name, group);
   }
 
+  /**
+   *
+   * @param {Group} group
+   */
   unregisterGroup(group) {
-    this.this.groups.delete(group.config.name);
+    this.groups.delete(group.config.name);
   }
 }
