@@ -46,7 +46,7 @@ router.post(
   async (req: Request, res: Response, next: any) => {
     try {
       const {connName} = req.body.opcServer;
-      await controller.connectToNewServer(connName);
+      await server.setup();
       res.json('Conexão sendo criada...');
     } catch (err) { next(err); }
   },
@@ -57,7 +57,7 @@ router.post(
   async (req: Request, res: Response, next: any) => {
     try {
       const {connName, groupName, items} = req.body.opcServer;
-      res.json(await controller.createGroupItensConn(connName, groupName, items));
+      res.json(await server.createGroup(groupName, server, {varTable: items}));
     } catch (err) { next(err); }
   },
 );

@@ -55,8 +55,8 @@ export default class Group extends EventEmitter {
   /** @type {boolean} */
   onCleanUp;
 
-  /** @type {{name: String, server: Server, updaterate: String, deadband: String, active: boolean, validate: boolean, vartable: []}}
-   * vartable Lista com itens do grupo a ser criado.
+  /** @type {{name: String, server: Server, updaterate: String, deadband: String, active: boolean, validate: boolean, varTable: []}}
+   * varTable Lista com itens do grupo a ser criado.
    * */
   config;
 
@@ -74,7 +74,7 @@ export default class Group extends EventEmitter {
    * @param {Server} config.server Instância de um servidor OPC-DA criado.
    * @param {boolean} config.active
    * @param {boolean} config.validate
-   * @param {object[]} config.vartable
+   * @param {object[]} config.varTable
    */
   constructor(config) {
     super();
@@ -97,20 +97,10 @@ export default class Group extends EventEmitter {
     this.config = config;
   }
 
-//   OPCDAGroup(config) {
-
-//     // node.server = RED.nodes.getNode(config.server);
-
-//     // if (!node.server || !node.server.registerGroup) {
-//     //   return node.error(RED._("opc-da.error.missingconfig"));
-//     // }
-
-//   }
-
-    /**
-     * @private
-     * @param {OPCGroupStateManager} newGroup
-     */
+  /**
+   * @private
+   * @param {OPCGroupStateManager} newGroup
+   */
   async setup(newGroup) {
     // if (this.server.getStatus() === 'online') {
     //   this.server.createGroup(this);
@@ -130,7 +120,7 @@ export default class Group extends EventEmitter {
       this.readInProgress = false;
       this.readDeferred = 0;
 
-      const items = this.config.vartable || [];
+      const items = this.config.varTable || [];
       if (items.length < 1) {
         new ConsoleLog('warn').printConsole(['[GROUP] - Sem itens na criação de um grupo']);
       }
@@ -193,10 +183,9 @@ export default class Group extends EventEmitter {
     if (this.config.server.groups.has(this.config.name)) {
       new ConsoleLog('warn').printConsole('[SERVER] - Grupo já existe!');
     } else {
-      this.config.server.set(this.config.name, group);
+      this.config.server.groups.set(this.config.name, group);
     }
   }
-
 
   async cleanup() {
     if (this.onCleanUp) { return; }

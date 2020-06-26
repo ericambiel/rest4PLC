@@ -10,7 +10,7 @@ import OPCServer from 'node-opc-da/src/opcServer';
 import ConsoleLog from '../ConsoleLog';
 
 import ErrorMessage from './ErrorMessage';
-// eslint-disable-next-line no-unused-vars
+// eslint-disable-next-line import/no-cycle
 import Group from './Group';
 
 
@@ -184,7 +184,7 @@ export default class Server extends EventEmitter {
   }
 
   // eslint-disable-next-line shopify/prefer-early-return
-  reConnect() {
+  async reConnect() {
 
     /* if reconnect was already called, do nothing if reconnect was never called, try to restart the session */
     if (!this.reconnecting) {
@@ -202,17 +202,20 @@ export default class Server extends EventEmitter {
 
   /**
    * Cria novo grupo. Gera nova instancia em MAP de Server e adiciona também em OPCServer
+   * @param {String} name Nome do Grupo
+   * @param {Server} server Instância da classe Server.
    * @param {Object} grpConfig
-   * @param {String} grpConfig.name Nome do Grupo
-   * @param {Server} grpConfig.server Instância da classe Server.
-   * @param {[]} grpConfig.vartable Lista com itens a serem inseridos, adquira com BrowseFlat
+   * @param {[]} grpConfig.varTable Lista com itens a serem inseridos, adquira com BrowseFlat
    * @param {boolean} [grpConfig.validate=false]
    * @param {boolean} [grpConfig.active=true]
    * @param {Number} [grpConfig.updateRate=1000]
    * @param {Number} [grpConfig.timeBias=0]
    * @param {Number} [grpConfig.deadband=0]
    */
-  createGroup(grpConfig) {
+  async createGroup(name, server, grpConfig) {
+    grpConfig.name = name;
+    grpConfig.server = server;
+
     const group = new Group(grpConfig);
 
     const oPCGroupStateManager = await this.opcServer.addGroup(grpConfig.name, grpConfig);
