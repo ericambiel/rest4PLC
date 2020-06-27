@@ -10,6 +10,7 @@ import OPCServer from 'node-opc-da/src/opcServer';
 import ConsoleLog from '../ConsoleLog';
 
 import ErrorMessage from './ErrorMessage';
+// import Browse from './Browse';
 // eslint-disable-next-line import/no-cycle
 import Group from './Group';
 
@@ -28,17 +29,17 @@ export default class Server extends EventEmitter {
   /** @type {ComObject} */
   comObject;
 
-//   /** @type {Group} */
-//   group;
-
   /** @type {Map<String, Group>} */
   groups;
+
+  // /** @type {Browse} */
+  // browse;
 
   /** @type {boolean} */
   isOnCleanUp;
 
   /** @type {boolean} */
-  reconnecting;
+  isOnReconnecting;
 
   /** @type {String} */
   status;
@@ -76,11 +77,12 @@ export default class Server extends EventEmitter {
     };
 
     this.isOnCleanUp = false;
-    this.reconnecting = false;
+    this.isOnReconnecting = false;
     this.status = 'unknown';
     this.groups = new Map();
 
     this.setup().catch(this.onComServerError);
+    // this.browse = new Browse(this); // Somente necessario se implementar mais funções a Navegação de itens.
   }
 
   async onComServerError(err) {
@@ -137,7 +139,8 @@ export default class Server extends EventEmitter {
     // Cria conexão OPC-DA com servidor COM
     this.opcServer = new OPCServer();
     await this.opcServer.init(this.comObject);
-    // Caso já exista algum grupo salvo, dar carga DB aqui
+    // eslint-disable-next-line no-warning-comments
+    // TODO: Caso já exista algum grupo salvo, dar carga DB aqui
     for (const entry of this.groups.entries()) {
       const name = entry[0];
       const group = entry[1];
@@ -149,35 +152,66 @@ export default class Server extends EventEmitter {
     this.updateStatus('online');
   }
 
+  /**
+   * Lista todos os itens em um Servidor OPC-DA
+   * @param {boolean} isAllFlat Se true retorna itens alinhados se falso em cascata
+   */
+  async browseItems(isAllFlat) {
+
+    /** @type {[String]|[Object]} */
+    let items;
+
+    const opcBrowser = await this.opcServer.getBrowser();
+
+    if (isAllFlat) {
+      items = await opcBrowser.browseAllFlat();
+    } else {
+      items = await opcBrowser.browseAllTree();
+    }
+
+    return items;
+  }
+
   async cleanup() {
     try {
       if (this.isOnCleanUp) { return; }
       new ConsoleLog('info').printConsole('[SERVER] - Cleaning Up');
       this.isOnCleanUp = true;
-      // cleanup this.groups first
-      new ConsoleLog('info').printConsole('[SERVER] - Cleaning this.groups...');
-      for (const group of this.this.groups.values()) {
-        // await group.cleanUp();
-      }
+
+      //  cleanup groups first
+      new ConsoleLog('info').printConsole('[SERVER] - Cleaning groups...');
+      this.groups.forEach(async (group, key) => {
+        await group.cleanUp()
+          .then(new ConsoleLog('info').printConsole(`[SERVER] - Limpando grupo: ${key}`))
+          .catch((err) => {
+            new ConsoleLog('error').printConsole(`[SERVER] - Erro ao limpar grupo: ${key}`);
+            throw err;
+          });
+      });
       new ConsoleLog('info').printConsole('[SERVER] - Cleaned Groups');
+
       if (this.opcServer) {
-        // await this.opcServer.end();
-        this.opcServer = null;
+        new ConsoleLog('info').printConsole('[SERVER] - Cleaning Server');
+        await this.opcServer.end()
+          .then(new ConsoleLog('info').printConsole('[SERVER] - Cleaned Server'))
+          .catch(this.opcServer = null);
       }
-      new ConsoleLog('info').printConsole('[SERVER] - Cleaned this.opcServer');
+
       if (this.comSession) {
-        await this.comSession.destroySession();
-        this.comServer = null;
+        new ConsoleLog('info').printConsole('[SERVER] - Cleaned opcServer');
+        await this.comSession.destroySession()
+          .then(new ConsoleLog('info').printConsole('[SERVER] - Cleaned session. Finished.'))
+          .then(this.comServer = null)
+          .catch((err) => { throw err; });
       }
-      new ConsoleLog('info').printConsole('[SERVER] - Cleaned session. Finished.');
+
       this.isOnCleanUp = false;
     } catch (err) {
       // eslint-disable-next-line no-warning-comments
       // TODO I18N
       this.isOnCleanUp = false;
       const error = err || err.stack;
-      // eslint-disable-next-line object-shorthand
-      new ConsoleLog('error').printConsole(`[SERVER] - Error cleaning up server: ${error}`, {error: error});
+      new ConsoleLog('error').printConsole(`[SERVER] - Error cleaning up server: ${error}`);
     }
 
     this.updateStatus('unknown');
@@ -187,12 +221,12 @@ export default class Server extends EventEmitter {
   async reConnect() {
 
     /* if reconnect was already called, do nothing if reconnect was never called, try to restart the session */
-    if (!this.reconnecting) {
+    if (!this.isOnReconnecting) {
       new ConsoleLog('info').printConsole('[SERVER] - cleaning up');
-      this.reconnecting = true;
+      this.isOnReconnecting = true;
       await this.cleanup();
       await this.setup().catch(this.onComServerError);
-      this.reconnecting = false;
+      this.isOnReconnecting = false;
     }
   }
 

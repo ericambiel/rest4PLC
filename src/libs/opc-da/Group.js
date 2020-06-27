@@ -10,7 +10,7 @@ import constants from 'node-opc-da/src/constants';
 
 import ConsoleLog from '../ConsoleLog';
 
-// eslint-disable-next-line no-unused-vars
+// eslint-disable-next-line import/no-cycle
 import Server from './Server';
 
 
@@ -53,7 +53,7 @@ export default class Group extends EventEmitter {
   validate;
 
   /** @type {boolean} */
-  onCleanUp;
+  isOnCleanUp;
 
   /** @type {{name: String, server: Server, updaterate: String, deadband: String, active: boolean, validate: boolean, varTable: []}}
    * varTable Lista com itens do grupo a ser criado.
@@ -71,7 +71,7 @@ export default class Group extends EventEmitter {
 
   /**
    * @param {Object} config
-   * @param {Server} config.server Instância de um servidor OPC-DA criado.
+   * @param {Server} config.server Instância de um servidor OPC-DA criada.
    * @param {boolean} config.active
    * @param {boolean} config.validate
    * @param {object[]} config.varTable
@@ -92,7 +92,7 @@ export default class Group extends EventEmitter {
     this.connected = false;
     this.readDeferred = 0;
     this.oldItems = {};
-    this.onCleanUp = false;
+    this.isOnCleanUp = false;
 
     this.config = config;
   }
@@ -187,9 +187,10 @@ export default class Group extends EventEmitter {
     }
   }
 
+  /** Apaga e finaliza todas as relações a instancia atual do grupo */
   async cleanup() {
-    if (this.onCleanUp) { return; }
-    this.onCleanUp = true;
+    if (this.isOnCleanUp) { return; }
+    this.isOnCleanUp = true;
 
     clearInterval(this.timer);
     this.clientHandlePtr = 1;
@@ -198,29 +199,34 @@ export default class Group extends EventEmitter {
 
     try {
       if (this.opcSyncIo) {
-        await this.opcSyncIo.end();
-        new ConsoleLog('info').printConsole("GroupCLeanup - opcSync");
-        this.opcSyncIo = null;
+        new ConsoleLog('info').printConsole("[Group] - opcSync - Encerrando conexões de sincronia com itens do grupo.");
+        await this.opcSyncIo.end()
+          .then(new ConsoleLog('info').printConsole("[Group] - opcSync - Conexões de sincronia com itens do grupo encerradas!"))
+          .then(this.opcSyncIo = null)
+          .catch((err) => { throw err; });
       }
 
       if (this.opcItemMgr) {
-        await this.opcItemMgr.end();
-        new ConsoleLog('info').printConsole("GroupCLeanup - opcItemMgr");
-        this.opcItemMgr = null;
+        new ConsoleLog('info').printConsole("[Group] - opcItemMgr - Apagando gerenciador de itens do grupo.");
+        await this.opcItemMgr.end()
+          .then(new ConsoleLog('info').printConsole("[Group] - opcItemMgr - Gerenciador de itens do grupo apagado!"))
+          .then(this.opcItemMgr = null)
+          .catch((err) => { throw err; });
       }
 
       if (this.opcGroupMgr) {
-        await this.opcGroupMgr.end();
-        new ConsoleLog('info').printConsole("GroupCLeanup - this.opcGroupMgr");
-        this.opcGroupMgr = null;
+        new ConsoleLog('info').printConsole("[Group] - opcGroupMgr - Apagando gerenciador do grupo.");
+        await this.opcGroupMgr.end()
+          .then(new ConsoleLog('info').printConsole("[Group] - opcGroupMgr - Gerenciador do grupo apagado!"))
+          .then(this.opcGroupMgr = null)
+          .catch((err) => { throw err; });
       }
     } catch (err) {
-      this.onCleanUp = false;
+      this.isOnCleanUp = false;
       const error = err || err.stack;
-      new ConsoleLog('info').printConsole(err);
       new ConsoleLog('error').printConsole(`Error on cleaning up group: ${error}`);
     }
-    this.onCleanUp = false;
+    this.isOnCleanUp = false;
   }
 
   async doCycle() {
