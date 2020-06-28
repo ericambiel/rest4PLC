@@ -3,7 +3,8 @@ import {Router, Request, Response} from 'express';
 import Server from '../../../libs/opc-da/Server';
 
 const router = Router();
-let server;
+
+let server: Server;
 
 router.get(
     '/list_tree_opc_items',
@@ -37,7 +38,7 @@ router.get(
 
 router.post(
   '/create_connection_server_opcda',
-  async (req: Request, res: Response, next: any) => {
+  (req: Request, res: Response, next: any) => {
     try {
       const {connName} = req.body.opcServer;
       server = new Server(
@@ -57,7 +58,7 @@ router.post(
   async (req: Request, res: Response, next: any) => {
     try {
       const {connName, groupName, items} = req.body.opcServer;
-      res.json(await server.createGroup(groupName, server, {varTable: items}));
+      res.json(await server.createGroup({name: groupName, server, varTable: items}));
     } catch (err) { next(err); }
   },
 );

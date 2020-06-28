@@ -139,8 +139,7 @@ export default class Server extends EventEmitter {
     // Cria conexão OPC-DA com servidor COM
     this.opcServer = new OPCServer();
     await this.opcServer.init(this.comObject);
-    // eslint-disable-next-line no-warning-comments
-    // TODO: Caso já exista algum grupo salvo, dar carga DB aqui
+    // Caso restarte iniciado por Group recria grupos para a conexão.
     for (const entry of this.groups.entries()) {
       const name = entry[0];
       const group = entry[1];
@@ -236,9 +235,9 @@ export default class Server extends EventEmitter {
 
   /**
    * Cria novo grupo. Gera nova instancia em MAP de Server e adiciona também em OPCServer
-   * @param {String} name Nome do Grupo
-   * @param {Server} server Instância da classe Server.
    * @param {Object} grpConfig
+   * @param {String} grpConfig.name Nome do Grupo
+   * @param {Server} grpConfig.server Instância da classe Server.
    * @param {[]} grpConfig.varTable Lista com itens a serem inseridos, adquira com BrowseFlat
    * @param {boolean} [grpConfig.validate=false]
    * @param {boolean} [grpConfig.active=true]
@@ -246,16 +245,19 @@ export default class Server extends EventEmitter {
    * @param {Number} [grpConfig.timeBias=0]
    * @param {Number} [grpConfig.deadband=0]
    */
-  async createGroup(name, server, grpConfig) {
-    grpConfig.name = name;
-    grpConfig.server = server;
+  async createGroup(grpConfig) {
+    if (this.groups.has(grpConfig.name)) {
+      new ConsoleLog('warn').printConsole('[SERVER] - Grupo já existe, tente outro nome!');
+    } else {
+      const group = new Group(grpConfig);
 
-    const group = new Group(grpConfig);
+      const oPCGroupStateManager = await this.opcServer.addGroup(grpConfig.name, grpConfig);
+      new ConsoleLog('info').printConsole(`[SERVER] - setup for group: ${group.grpConfig.name}`);
+      await group.setup(oPCGroupStateManager);
+      group.onServerStatus(this.status);
 
-    const oPCGroupStateManager = await this.opcServer.addGroup(grpConfig.name, grpConfig);
-    new ConsoleLog('info').printConsole(`[SERVER] - setup for group: ${group.config.name}`);
-    await group.setup(oPCGroupStateManager);
-    group.onServerStatus(this.status);
+      this.groups.set(grpConfig.name, group);
+    }
   }
 
 //   /**
@@ -276,6 +278,6 @@ export default class Server extends EventEmitter {
    */
   unregisterGroup(group) {
     // Somente deleta do MAP da instancia em Server mas não deleta de OPCServer
-    this.groups.delete(group.config.name);
+    this.groups.delete(group.grpConfig.name);
   }
 }

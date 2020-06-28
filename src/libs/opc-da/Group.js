@@ -1,20 +1,45 @@
 import {EventEmitter} from 'events';
 
-// eslint-disable-next-line no-unused-vars
-import OPCItemManager from 'node-opc-da/src/opcItemManager';
-// eslint-disable-next-line no-unused-vars
-import OPCGroupStateManager from 'node-opc-da/src/opcGroupStateManager';
-// eslint-disable-next-line no-unused-vars
-import OPCSyncIO from 'node-opc-da/src/opcAsyncIO';
 import constants from 'node-opc-da/src/constants';
 
 import ConsoleLog from '../ConsoleLog';
 
-// eslint-disable-next-line import/no-cycle
 import Server from './Server';
 
-
 export default class Group extends EventEmitter {
+
+  /**
+   * @typedef {import ('node-opc-da/src/opcGroupStateManager')} OPCGroupStateManager
+   * @typedef {import ('node-opc-da/src/opcItemManager')} OPCItemManager
+   * @typedef {import ('node-opc-da/src/opcSyncIO')} OPCSyncIO
+   */
+
+  /**
+   * @typedef GrpConfig
+   * @property {Object}
+   * @property {String} name - Nome do Grupo
+   * @property {Server} server - Instância da classe Server.
+   * @property {[]} varTable - Lista com itens a serem inseridos, adquira com BrowseFlat
+   * @property {boolean} [validate=false]
+   * @property {boolean} [active=true]
+   * @property {Number} [updateRate=1000] - Tempo de atualização dos itens do grupo
+   * @property {Number} [timeBias=0] - %
+   * @property {Number} [gdeadband=0]
+   */
+
+  /**
+   * @typedef OPCSyncIORead Lista com valores retornado por opcSyncIO.
+   * @type {[ResObj, {errorCode: Number}]}
+   *
+   * @typedef ResObj Objeto retornado por extração de valores de um item.
+   * @type {Object}
+   * @property {number} errorCode - Código de error.
+   * @property {number} clientHandle - Identificador do item no cliente.
+   * @property {Date} timestamp - Data da aquisição do valor.
+   * @property {Number} quality - Qualidade do valor obtido, ex: 192 = good.
+   * @property {*} reserved
+   * @property {*} value - Valor do item lido.
+   */
 
   /** @type {OPCGroupStateManager} */
   opcGroupMgr;
@@ -55,10 +80,8 @@ export default class Group extends EventEmitter {
   /** @type {boolean} */
   isOnCleanUp;
 
-  /** @type {{name: String, server: Server, updaterate: String, deadband: String, active: boolean, validate: boolean, varTable: []}}
-   * varTable Lista com itens do grupo a ser criado.
-   * */
-  config;
+  /** @type {GrpConfig} */
+  grpConfig;
 
   /** @type {String} */
   status;
@@ -66,22 +89,25 @@ export default class Group extends EventEmitter {
   /** @type {Timeout} */
   timer;
 
-  /** @type {Number} @const*/
+  /** @constant @type {Number} @default 100*/
   MIN_UPDATE_RATE = 100;
 
   /**
-   * @param {Object} config
-   * @param {Server} config.server Instância de um servidor OPC-DA criada.
-   * @param {boolean} config.active
-   * @param {boolean} config.validate
-   * @param {object[]} config.varTable
+   * @param {GrpConfig} grpConfig
    */
-  constructor(config) {
+  constructor(grpConfig) {
     super();
     EventEmitter.call(this);
 
-    this.updateRate = config.updateRate;
-    this.validate = config.validate;
+    // this.on('close', async function(done) {
+    //   grpConfig.server.unregisterGroup(this);
+    //   await this.cleanup();
+    //   new ConsoleLog('info').printConsole("group cleaned");
+    //   done();
+    // });
+
+    this.validate = grpConfig.validate;
+    this.updateRate = grpConfig.updateRate;
 
     this.status = 'unknown';
 
@@ -94,7 +120,7 @@ export default class Group extends EventEmitter {
     this.oldItems = {};
     this.isOnCleanUp = false;
 
-    this.config = config;
+    this.grpConfig = grpConfig;
   }
 
   /**
@@ -102,10 +128,6 @@ export default class Group extends EventEmitter {
    * @param {OPCGroupStateManager} newGroup
    */
   async setup(newGroup) {
-    // if (this.server.getStatus() === 'online') {
-    //   this.server.createGroup(this);
-    // }
-
     clearInterval(this.timer);
 
     try {
@@ -120,7 +142,7 @@ export default class Group extends EventEmitter {
       this.readInProgress = false;
       this.readDeferred = 0;
 
-      const items = this.config.varTable || [];
+      const items = this.grpConfig.varTable || [];
       if (items.length < 1) {
         new ConsoleLog('warn').printConsole(['[GROUP] - Sem itens na criação de um grupo']);
       }
@@ -136,12 +158,11 @@ export default class Group extends EventEmitter {
         const resItem = resAddItems[i];
         const item = itemsList[i];
 
-        // eslint-disable-next-line no-negated-condition
-        if (resItem[0] !== 0) {
-          new ConsoleLog('error').printConsole(`Error adding item '${itemsList[i].itemID}': ${this.errorMessage(resItem[0])}`);
-        } else {
+        if (resItem[0] === 0) {
           this.serverHandles.push(resItem[1].serverHandle);
           this.clientHandles[item.clientHandle] = item.itemID;
+        } else {
+          new ConsoleLog('error').printConsole(`Error adding item '${itemsList[i].itemID}': ${this.errorMessage(resItem[0])}`);
         }
       }
     } catch (err) {
@@ -153,37 +174,12 @@ export default class Group extends EventEmitter {
     // we may support adding items at a later time
     if (this.updateRate < this.MIN_UPDATE_RATE) {
       this.updateRate = this.MIN_UPDATE_RATE;
-      new ConsoleLog('warn').printConsole('opc-da.warn.minupdaterate', {value: `${this.updateRate}ms`});
+      new ConsoleLog('warn').printConsole(`[GROUP] Valor minimo para updateRate: ${this.updateRate}ms`);
     }
 
-    if (this.config.active) {
+    if (this.grpConfig.active) {
       this.timer = setInterval(this.doCycle, this.updateRate);
       this.doCycle();
-    }
-
-    // this.on('close', async function(done) {
-    //   server.unregisterGroup(this);
-    //   await cleanup();
-    //   new ConsoleLog('info').printConsole("group cleaned");
-    //   done();
-    // });
-
-    const error = this.registerGroupOnServer(this);
-    if (error) {
-      new ConsoleLog('error').printConsole(`[GROUP] ${error}`);
-    }
-  }
-
-  /**
-   * Registra novo grupo em Server.groups (MAP)
-   * @private
-   * @param {this} group
-   */
-  registerGroupOnServer(group) {
-    if (this.config.server.groups.has(this.config.name)) {
-      new ConsoleLog('warn').printConsole('[SERVER] - Grupo já existe!');
-    } else {
-      this.config.server.groups.set(this.config.name, group);
     }
   }
 
@@ -236,29 +232,33 @@ export default class Group extends EventEmitter {
       this.readInProgress = true;
       this.readDeferred = 0;
       await this.opcSyncIo.read(constants.opc.dataSource.DEVICE, this.serverHandles)
-        .then(this.cycleCallback).catch(this.cycleError);
+        .then(this.cycleCallback)
+        .catch(this.cycleError);
     } else {
       this.readDeferred++;
       if (this.readDeferred > 15) {
         new ConsoleLog('warn').printConsole("opc-da.error.noresponse");
         clearInterval(this.timer);
-                // since we have no good way to know if there is a network problem
-                // or if something else happened, restart the whole thing
-        this.config.server.reConnect();
+        // since we have no good way to know if there is a network problem
+        // or if something else happened, restart the whole thing
+        this.grpConfig.server.reConnect();
       }
     }
   }
 
-  cycleCallback(values) {
+   /**
+   * @param {OPCSyncIORead} res Lista com valores retornado por opcSyncIO.
+   */
+  cycleCallback(res) {
     this.readInProgress = false;
 
     if (this.readDeferred && this.connected) {
       this.doCycle();
       this.readDeferred = 0;
     }
-        // sanitizeValues(values);
+        // sanitizeValues(resObj);
     let changed = false;
-    for (const item of values) {
+    for (const item of res) {
       const itemID = this.clientHandles[item.clientHandle];
 
       if (!itemID) {
