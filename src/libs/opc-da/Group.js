@@ -16,7 +16,7 @@ export default class Group extends EventEmitter {
 
   /**
    * @typedef GrpConfig
-   * @property {Object}
+   * @type {Object}
    * @property {String} name - Nome do Grupo
    * @property {Server} server - Instância da classe Server.
    * @property {[]} varTable - Lista com itens a serem inseridos, adquira com BrowseFlat
@@ -106,6 +106,12 @@ export default class Group extends EventEmitter {
     //   done();
     // });
 
+    if (!grpConfig.validade) { grpConfig.validate = false; }
+    if (!grpConfig.active) { grpConfig.active = true; }
+    if (!grpConfig.updateRate) { grpConfig.updateRate = 1000; }
+    if (!grpConfig.timeBias) { grpConfig.timeBias = 0; }
+    if (!grpConfig.gdeadband) { grpConfig.gdeadband = 0; }
+
     this.validate = grpConfig.validate;
     this.updateRate = grpConfig.updateRate;
 
@@ -144,7 +150,7 @@ export default class Group extends EventEmitter {
 
       const items = this.grpConfig.varTable || [];
       if (items.length < 1) {
-        new ConsoleLog('warn').printConsole(['[GROUP] - Sem itens na criação de um grupo']);
+        new ConsoleLog('warn:group').printConsole(`Sem itens na criação do grupo: ${this.grpConfig.name}`);
       }
 
       const itemsList = items.map((item) => {
@@ -162,65 +168,80 @@ export default class Group extends EventEmitter {
           this.serverHandles.push(resItem[1].serverHandle);
           this.clientHandles[item.clientHandle] = item.itemID;
         } else {
-          new ConsoleLog('error').printConsole(`Error adding item '${itemsList[i].itemID}': ${this.errorMessage(resItem[0])}`);
+          new ConsoleLog('error:group').printConsole(`Error adding item '${itemsList[i].itemID}': ${this.errorMessage(resItem[0])} to group: ${this.grpConfig.name}`);
         }
       }
     } catch (err) {
       const error = err || err.stack;
-      new ConsoleLog('error').printConsole(`Error on setting up group: ${error}`);
+      new ConsoleLog('error:group').printConsole(`Error on setting up group: ${this.grpConfig.name}, erro: ${error}`);
     }
 
     // we set up the timer regardless the result of setting up items
     // we may support adding items at a later time
     if (this.updateRate < this.MIN_UPDATE_RATE) {
       this.updateRate = this.MIN_UPDATE_RATE;
-      new ConsoleLog('warn').printConsole(`[GROUP] Valor minimo para updateRate: ${this.updateRate}ms`);
+      new ConsoleLog('warn:group').printConsole(`Valor minimo para updateRate: ${this.updateRate}ms`);
     }
 
     if (this.grpConfig.active) {
-      this.timer = setInterval(this.doCycle, this.updateRate);
+      this.timer = setInterval(() => this.doCycle(), this.updateRate);
       this.doCycle();
     }
   }
 
   /** Apaga e finaliza todas as relações a instancia atual do grupo */
   async cleanup() {
-    if (this.isOnCleanUp) { return; }
-    this.isOnCleanUp = true;
-
-    clearInterval(this.timer);
-    this.clientHandlePtr = 1;
-    this.clientHandles.length = 0;
-    this.serverHandles = [];
-
     try {
+      if (this.isOnCleanUp) { return; }
+      this.isOnCleanUp = true;
+
+      clearInterval(this.timer);
+      this.clientHandlePtr = 1;
+      this.clientHandles.length = 0;
+      this.serverHandles = [];
+      // const arrayPromise = [];
+
       if (this.opcSyncIo) {
-        new ConsoleLog('info').printConsole("[Group] - opcSync - Encerrando conexões de sincronia com itens do grupo.");
+        // new ConsoleLog('info:group').printConsole(`opcSync - Encerrando conexões de sincronia com itens do grupo: ${this.grpConfig.name}`);
+        // arrayPromise.push(
         await this.opcSyncIo.end()
-          .then(new ConsoleLog('info').printConsole("[Group] - opcSync - Conexões de sincronia com itens do grupo encerradas!"))
-          .then(this.opcSyncIo = null)
+          .then(() => {
+            new ConsoleLog('info:group').printConsole("opcSync - Conexões de sincronia com itens do grupo encerradas!");
+            this.opcSyncIo = null;
+          })
           .catch((err) => { throw err; });
+        // );
       }
 
+
       if (this.opcItemMgr) {
-        new ConsoleLog('info').printConsole("[Group] - opcItemMgr - Apagando gerenciador de itens do grupo.");
+      //   new ConsoleLog('info:group').printConsole(`opcItemMgr - Apagando gerenciador de itens do grupo: ${this.grpConfig.name}`);
+      //   arrayPromise.push(
         await this.opcItemMgr.end()
-          .then(new ConsoleLog('info').printConsole("[Group] - opcItemMgr - Gerenciador de itens do grupo apagado!"))
-          .then(this.opcItemMgr = null)
-          .catch((err) => { throw err; });
+          .then(() => {
+            new ConsoleLog('info:group').printConsole("opcItemMgr - Gerenciador de itens do grupo apagado!");
+            this.opcItemMgr = null;
+          }).catch((err) => { throw err; });
+        // );
       }
 
       if (this.opcGroupMgr) {
-        new ConsoleLog('info').printConsole("[Group] - opcGroupMgr - Apagando gerenciador do grupo.");
+        // new ConsoleLog('info:group').printConsole(`opcGroupMgr - Apagando gerenciador do grupo: ${this.grpConfig.name}`);
+        // arrayPromise.push(
         await this.opcGroupMgr.end()
-          .then(new ConsoleLog('info').printConsole("[Group] - opcGroupMgr - Gerenciador do grupo apagado!"))
-          .then(this.opcGroupMgr = null)
-          .catch((err) => { throw err; });
+          .then(() => {
+            new ConsoleLog('info:group').printConsole("opcGroupMgr - Gerenciador do grupo apagado!");
+            this.opcGroupMgr = null;
+          }).catch((err) => { throw err; });
+        // );
       }
+
+      // await Promise.all(arrayPromise).catch((err) => { throw err; });
+
     } catch (err) {
       this.isOnCleanUp = false;
       const error = err || err.stack;
-      new ConsoleLog('error').printConsole(`Error on cleaning up group: ${error}`);
+      new ConsoleLog('error:group').printConsole(`Error on cleaning up group: ${this.grpConfig.name}, ${error}`);
     }
     this.isOnCleanUp = false;
   }
@@ -232,12 +253,12 @@ export default class Group extends EventEmitter {
       this.readInProgress = true;
       this.readDeferred = 0;
       await this.opcSyncIo.read(constants.opc.dataSource.DEVICE, this.serverHandles)
-        .then(this.cycleCallback)
-        .catch(this.cycleError);
+        .then((res) => this.cycleCallback(res))
+        .catch((err) => this.cycleError(err));
     } else {
       this.readDeferred++;
       if (this.readDeferred > 15) {
-        new ConsoleLog('warn').printConsole("opc-da.error.noresponse");
+        new ConsoleLog('warn:group').printConsole(`Sem resposta para itens do grupo: ${this.grpConfig.name}`);
         clearInterval(this.timer);
         // since we have no good way to know if there is a network problem
         // or if something else happened, restart the whole thing
@@ -264,7 +285,7 @@ export default class Group extends EventEmitter {
       if (!itemID) {
         // eslint-disable-next-line no-warning-comments
         // TODO - what is the right to do here?
-        new ConsoleLog('warn').printConsole("Server replied with an unknown client handle");
+        new ConsoleLog('warn:group').printConsole(`Server replied with an unknown client handle, group: ${this.grpConfig.name}`);
         continue;
       }
 
@@ -283,7 +304,7 @@ export default class Group extends EventEmitter {
 
   cycleError(err) {
     this.readInProgress = false;
-    new ConsoleLog('error').printConsole(`Error reading items: ${err}` && (err.stack || err));
+    new ConsoleLog('error:group').printConsole(`Error reading items, group: ${this.grpConfig.name}, error: ${err}`);
   }
 
   onServerStatus(status) {

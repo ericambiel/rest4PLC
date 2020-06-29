@@ -13,7 +13,9 @@ const express = require('express');
 const cookieParser = require('cookie-parser');
 const mongoose = require('mongoose');
 
-const ConsoleLog = require('./libs/ConsoleLog');
+const {default: ConsoleLog} = require('./libs/ConsoleLog');
+
+// const ConsoleLog = require('./libs/ConsoleLog');
 
 const connectionString =
   `mongodb://${process.env.DB_USER}:${process.env.DB_PASSWORD}@${process.env.DB_HOST}:${process.env.DB_PORT}/${process.env.DB_NAME}`;
@@ -29,13 +31,13 @@ mongoose.connect(connectionString, {
   useCreateIndex: true}) // Para mais detalhes https://github.com/Automattic/mongoose/issues/6890
   .then((client) => {
     client.connections.forEach((connection) => {
-      new ConsoleLog('info').printConsole(`[START] - Conectado ao BD em: ${connection.host}:${connection.port}`);
-      new ConsoleLog('info').printConsole(`[START] - Base de Dados: ${connection.name}`);
+      new ConsoleLog('info:start').printConsole(`Conectado ao BD em: ${connection.host}:${connection.port}`);
+      new ConsoleLog('info:start').printConsole(`Base de Dados: ${connection.name}`);
     });
-    new ConsoleLog('info').printConsole(`[START] - Contato: eric.ambiel@gmail.com.br - (19) 9 9747-4657`);
+    new ConsoleLog('info:start').printConsole(`Contato: eric.ambiel@gmail.com.br - (19) 9 9747-4657`);
   })
   .catch((error) => {
-    new ConsoleLog('error').printConsole(`[START] - Erro ao se conectar ao BD: ${error.message}`);
+    new ConsoleLog('error:start').printConsole(`Erro ao se conectar ao BD: ${error.message}`);
   });
 
 // Error handler

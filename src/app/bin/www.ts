@@ -58,11 +58,11 @@ function onError(error: any) {
   // handle specific listen errors with friendly messages
   switch (error.code) {
     case 'EACCES':
-      new ConsoleLog('erro').printConsole(`[START] - ${bind} requer elevação de privilégios`);
+      new ConsoleLog('erro:start').printConsole(`${bind} requer elevação de privilégios`);
       process.exit(1);
       break;
     case 'EADDRINUSE':
-      new ConsoleLog('erro').printConsole(`[START] - ${bind} já esta em uso`);
+      new ConsoleLog('erro:start').printConsole(`${bind} já esta em uso`);
       process.exit(1);
       break;
     default:
@@ -77,5 +77,5 @@ function onListening() {
   const bind = typeof server.address() === 'string'
     ? `pipe: ${server.address()}`
     : `endereço: ${JSON.stringify(server.address()!)}`;
-  new ConsoleLog('info').printConsole(`[START] - API Rest4PLC rodando em ${bind}`);
+  new ConsoleLog('info:start').printConsole(`API Rest4PLC rodando em ${bind}`);
 }

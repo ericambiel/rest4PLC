@@ -76,8 +76,9 @@ export default class ErrorMessage {
   /**
    * Imprime mensagem de erro de acordo com código informado.
    * @param {String} errorCode Código do error em HexDecimal
+   * @param {String} module Modulo de onde veio o disparo do erro.
    */
-  getErrorMessageAndPrint(errorCode) {
-    new ConsoleLog('error').printConsole(this.getErrorMessage(errorCode));
+  getErrorMessageAndPrint(errorCode, module) {
+    new ConsoleLog(`error:${module}`).printConsole(this.getErrorMessage(errorCode));
   }
 }
