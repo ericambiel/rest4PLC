@@ -143,13 +143,11 @@ export default class Server extends EventEmitter {
     this.opcServer = new OPCServer();
     await this.opcServer.init(this.comObject);
     // Caso restarte iniciado por Group recria grupos para a conexão.
-    for (const entry of this.groups.entries()) {
-      const name = entry[0];
-      const group = entry[1];
-      const oPCGroupStateManager = await this.opcServer.addGroup(name, group.opcConfig);
-      new ConsoleLog('info:server').printConsole(`setup for group: ${name}`);
+    this.groups.forEach(async (group, key) => {
+      const oPCGroupStateManager = await this.opcServer.addGroup(key, group.grpConfig);
+      new ConsoleLog('info:server').printConsole(`setup for group: ${key}`);
       await group.setup(oPCGroupStateManager);
-    }
+    });
 
     this.updateStatus('online');
   }
@@ -180,19 +178,19 @@ export default class Server extends EventEmitter {
       new ConsoleLog('info:server').printConsole('Cleaning Up');
       this.isOnCleanUp = true;
 
-      // cleanup groups first
-      // Necessário Map para Array para usar Promise All
-      new ConsoleLog('info:server').printConsole('Cleaning groups...');
-      const arrayGroups = [];
-      this.groups.forEach((group) => {
-        arrayGroups.push(group);
-      });
-      await Promise.all(arrayGroups.map((group) => {
-        return group.cleanup()
-          .catch((err) => { throw err; });
-      }))
-        .catch((err) => { throw err; });
-      new ConsoleLog('info:server').printConsole('Cleaned Groups')
+      // // cleanup groups first
+      // // Necessário Map para Array para usar Promise All
+      // new ConsoleLog('info:server').printConsole('Cleaning groups...');
+      // const arrayGroups = [];
+      // this.groups.forEach((group) => {
+      //   arrayGroups.push(group);
+      // });
+      // await Promise.all(arrayGroups.map((group) => {
+      //   return group.cleanup()
+      //     .catch((err) => { throw err; });
+      // }))
+      //   .catch((err) => { throw err; });
+      // new ConsoleLog('info:server').printConsole('Cleaned Groups');
 
       if (this.opcServer) {
         new ConsoleLog('info:server').printConsole('Cleaning Server');

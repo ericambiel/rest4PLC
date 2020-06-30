@@ -199,44 +199,31 @@ export default class Group extends EventEmitter {
       this.clientHandlePtr = 1;
       this.clientHandles.length = 0;
       this.serverHandles = [];
-      // const arrayPromise = [];
 
       if (this.opcSyncIo) {
-        // new ConsoleLog('info:group').printConsole(`opcSync - Encerrando conexões de sincronia com itens do grupo: ${this.grpConfig.name}`);
-        // arrayPromise.push(
         await this.opcSyncIo.end()
           .then(() => {
             new ConsoleLog('info:group').printConsole("opcSync - Conexões de sincronia com itens do grupo encerradas!");
             this.opcSyncIo = null;
           })
           .catch((err) => { throw err; });
-        // );
       }
 
-
       if (this.opcItemMgr) {
-      //   new ConsoleLog('info:group').printConsole(`opcItemMgr - Apagando gerenciador de itens do grupo: ${this.grpConfig.name}`);
-      //   arrayPromise.push(
         await this.opcItemMgr.end()
           .then(() => {
             new ConsoleLog('info:group').printConsole("opcItemMgr - Gerenciador de itens do grupo apagado!");
             this.opcItemMgr = null;
           }).catch((err) => { throw err; });
-        // );
       }
 
       if (this.opcGroupMgr) {
-        // new ConsoleLog('info:group').printConsole(`opcGroupMgr - Apagando gerenciador do grupo: ${this.grpConfig.name}`);
-        // arrayPromise.push(
         await this.opcGroupMgr.end()
           .then(() => {
             new ConsoleLog('info:group').printConsole("opcGroupMgr - Gerenciador do grupo apagado!");
             this.opcGroupMgr = null;
           }).catch((err) => { throw err; });
-        // );
       }
-
-      // await Promise.all(arrayPromise).catch((err) => { throw err; });
 
     } catch (err) {
       this.isOnCleanUp = false;
