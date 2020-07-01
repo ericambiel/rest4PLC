@@ -8,6 +8,7 @@ import OPCServer from 'node-opc-da/src/opcServer';
 import ConsoleLog from '../ConsoleLog';
 
 import ErrorMessage from './ErrorMessage';
+// Only for lint
 // import Browse from './Browse';
 // eslint-disable-next-line import/no-cycle
 import Group from './Group';
@@ -54,7 +55,7 @@ export default class Server extends EventEmitter {
   // const isVerbose = (config.verbose === 'on' || config.verbose === 'off') ? (config.verbose === 'on') : RED.settings.get('verbose');
 
    /**
-   *
+   * ---------- OPC-DA Sever ----------
    * @param {String} address       Endereço IP/Hostname do Servidor OPC remoto.
    * @param {String} domain        Nome do domínio Microsoft.
    * @param {String} username      Usuário de rede com acesso OPC ao servidor.
@@ -84,7 +85,6 @@ export default class Server extends EventEmitter {
     this.status = 'unknown';
     this.groups = new Map();
 
-    this.setup().catch(this.onComServerError);
     // this.browse = new Browse(this); // Somente necessario se implementar mais funções a Navegação de itens.
   }
 
@@ -113,43 +113,48 @@ export default class Server extends EventEmitter {
   }
 
   async setup() {
-    // Prepara sessão para conexão com servidor COM
-    this.comSession = new Session();
-    this.comSession = this.comSession.createSession(this.connOpts.domain, this.connOpts.username, this.connOpts.password);
-    this.comSession.setGlobalSocketTimeout(this.connOpts.timeout);
+    try {
+      // Prepara sessão para conexão com servidor COM
+      this.comSession = new Session();
+      this.comSession = this.comSession.createSession(this.connOpts.domain, this.connOpts.username, this.connOpts.password);
+      this.comSession.setGlobalSocketTimeout(this.connOpts.timeout);
 
-    // Cria conexão COM com servidor Microsoft
-    this.comServer = new ComServer(new Clsid(this.connOpts.clsid), this.connOpts.address, this.comSession);
+      // Cria conexão COM com servidor Microsoft
+      this.comServer = new ComServer(new Clsid(this.connOpts.clsid), this.connOpts.address, this.comSession);
 
-    // this.comServer.on('e_classnotreg', () => {
-    //   new ConsoleLog('error').printConsole("opc-da.error.classnotreg");
-    // });
+      // this.comServer.on('e_classnotreg', () => {
+      //   new ConsoleLog('error').printConsole("opc-da.error.classnotreg");
+      // });
 
-    // this.comServer.on("disconnected", () => {
-    //   this.onComServerError(ConsoleLog('error').printConsole("opc-da.error.disconnected"));
-    // });
+      // this.comServer.on("disconnected", () => {
+      //   this.onComServerError(ConsoleLog('error').printConsole("opc-da.error.disconnected"));
+      // });
 
-    // this.comServer.on("e_accessdenied", () => {
-    //   new ConsoleLog('error').printConsole("opc-da.error.accessdenied");
-    // });
+      // this.comServer.on("e_accessdenied", () => {
+      //   new ConsoleLog('error').printConsole("opc-da.error.accessdenied");
+      // });
 
-    this.comServer.on('error', (err) => this.onComServerError(err));
+      this.comServer.on('error', (err) => this.onComServerError(err));
 
-    await this.comServer.init();
+      await this.comServer.init();
 
-    this.comObject = await this.comServer.createInstance();
+      this.comObject = await this.comServer.createInstance();
 
-    // Cria conexão OPC-DA com servidor COM
-    this.opcServer = new OPCServer();
-    await this.opcServer.init(this.comObject);
-    // Caso restarte iniciado por Group recria grupos para a conexão.
-    this.groups.forEach(async (group, key) => {
-      const oPCGroupStateManager = await this.opcServer.addGroup(key, group.grpConfig);
-      new ConsoleLog('info:server').printConsole(`setup for group: ${key}`);
-      await group.setup(oPCGroupStateManager);
-    });
+      // Cria conexão OPC-DA com servidor COM
+      this.opcServer = new OPCServer();
+      await this.opcServer.init(this.comObject);
+      // Caso restarte iniciado por Group recria grupos para a conexão.
+      this.groups.forEach(async (group, key) => {
+        const oPCGroupStateManager = await this.opcServer.addGroup(key, group.grpConfig);
+        new ConsoleLog('info:server').printConsole(`setup for group: ${key}`);
+        await group.setup(oPCGroupStateManager);
+      });
 
-    this.updateStatus('online');
+      this.updateStatus('online');
+    } catch (err) {
+      this.onComServerError(err);
+      throw err;
+    }
   }
 
   /**
@@ -172,6 +177,9 @@ export default class Server extends EventEmitter {
     return items;
   }
 
+  /**
+   * Apaga e limpa referencias entre cliente e servidor
+   */
   async cleanup() {
     try {
       if (this.isOnCleanUp) { return; }
@@ -240,7 +248,6 @@ export default class Server extends EventEmitter {
    * Cria novo grupo. Gera nova instancia em MAP de Server e adiciona também em OPCServer
    * @param {Object} grpConfig
    * @param {String} grpConfig.name Nome do Grupo
-   * @param {Server} grpConfig.server Instância da classe Server.
    * @param {[]} grpConfig.varTable Lista com itens a serem inseridos, adquira com BrowseFlat
    * @param {boolean} [grpConfig.validate=false]
    * @param {boolean} [grpConfig.active=true]
@@ -249,6 +256,10 @@ export default class Server extends EventEmitter {
    * @param {Number} [grpConfig.deadband=0]
    */
   async createGroup(grpConfig) {
+
+    /** @type {Server} grpConfig.server Instância da classe Server. */
+    grpConfig.server = this;
+
     if (this.groups.has(grpConfig.name)) {
       new ConsoleLog('warn:server').printConsole('Grupo já existe, tente outro nome!');
     } else {

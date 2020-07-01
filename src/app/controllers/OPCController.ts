@@ -1,95 +1,37 @@
-import OPCDA from '../../libs/OPC';
+import OPCDA from '../../libs/opc-da/Server';
 
 export default class OPCController {
 
   /** @type Set */
-  private opcServesMap: Map<String, OPCDA>;
+  private opcServesMap: Map<string, OPCDA>;
 
   constructor() {
-    this.opcServesMap = new Map<String, OPCDA>();
+    this.opcServesMap = new Map<string, OPCDA>();
     // TODO: Carregar Conexões salvas no BD.
   }
 
   /**
    * Criara uma nova conexão com um Servidor OPC.
-   * @param {String} connName Um nome único para idêntificar conexão.
+   * @param {string} connName - Um nome único para idêntificar conexão.
+   * @param {string} address - IP/Hostname do servidor OPC-DA
+   * @param {string} domain - Domínio/Hostname do servidor OPC-DA
+   * @param {string} user - Usuário com acessos a DCOMs.
+   * @param {string} password - Senha do usuário informado.
+   * @param {string} clsid - ID do Objeto DCOM com acessos aos itens OPC no servidor.
    */
-  connectToNewServer(connName: String) {
-    try {
-      if (!this.opcServesMap.has(connName)) {
-        this.opcServesMap.set(connName, new OPCDA(
-          process.env.OPCDA_ADDRESS!,
-          process.env.OPCDA_DOMAIN!,
-          process.env.OPCDA_USER!,
-          process.env.OPCDA_PASS!,
-          process.env.OPCDA_CLSID!,
-          null,
-        ));
-          // TODO: Chamar Schema e salvar nova conexão no banco.
-      }
-    } catch (err) { throw Error(err.message); }
-  }
-
-  /**
-   * Verifica se uma conexão foi criada
-   * @param {String} connName Nome de uma conexão existente. Use "connectToNewServer" para criar uma.
-   */
-  private getSpecificConnection(connName: String): OPCDA {
+  async connectToNewServer(connName: string, address: string, domain: string,
+    user: string, password: string, clsid: string) {
     try {
       if (this.opcServesMap.has(connName)) {
-        return this.opcServesMap.get(connName)!;
+        return 'Conexão já existe tente outro nome.';
       } else {
-        throw Error('Não há nenhuma conexão com Servidor OPC-DA criada');
+        // TODO: Chamar Schema e salvar nova conexão no banco.
+        this.opcServesMap.set(connName, new OPCDA(
+          address, domain, user, password, clsid,
+        ));
+        await this.opcServesMap.get(connName)!.setup().catch((err) => { throw err; });
+        return 'Conexão sendo Criada...';
       }
-    } catch (err) { throw Error(err.message); }
-  }
-
-  /**
-   * Lista todos as TAG disponível em servidor OPC DA
-   * @param {String} connName Nome de uma conexão existente. Use "connectToNewServer" para criar uma.
-   */
-  async listAllServerItems(connName: String) {
-    try {
-      const opcda = this.getSpecificConnection(connName);
-      return await opcda.opcBrowser.browseAllTree();
-    } catch (err) { throw Error(err.message); }
-  }
-
-  /**
-   * Cria um grupo de itens a ser usado em posterior leitura de dados para uma conexão existente.
-   * @param {String} connName Nome de uma conexão existente. Use "connectToNewServer" para criar uma.
-   * @param {String} groupName Nome do grupo para ser criado para introdução de itens.
-   * @param {[{itemID: string}]} items Lista de itens para serem introduzidos. Use "listAllServerItems" para listar.
-   */
-  async createGroupItensConn(connName: String, groupName: string, items:[{itemID: string}]) {
-    try {
-      const opcda = this.getSpecificConnection(connName);
-      await opcda.createGroupItems(groupName, items);
-    } catch (err) { throw Error(err.message); }
-  }
-
-  /**
-   * Lê dados de itens em um grupo, em uma conexão existente.
-   * @param {String} groupName Nome do grupo para ser criado para introdução de itens.
-   * @param {String} connName Nome de uma conexão existente. Use "connectToNewServer" para criar uma.
-   */
-  async readGroupItems(connName: String, groupName: string) {
-    try {
-      const opcda = this.getSpecificConnection(connName);
-      // return await opcda._opcServer.getGroupByName(groupName);
-      return await opcda.getValuesSync(groupName, 'asdasdasd');
-    } catch (err) { throw Error(err.message); }
-  }
-
-  /**
-   * Lista todos os grupos de itens para uma conexão existente.
-   * @param {String} connName Nome de uma conexão existente. Use "connectToNewServer" para criar uma.
-   * TODO: NÂO TESTADO
-   */
-  async listAllConnGroups(connName: String) {
-    try {
-      const opcda = this.getSpecificConnection(connName);
-      return await opcda._opcServer.getGroups(0); // Verificar oque é esse parametro, https://www.desigoccecosystem.com/WebClientApplication/Help/EngineeringHelp/en-US/13672511115.html
     } catch (err) { throw Error(err.message); }
   }
 
@@ -101,4 +43,68 @@ export default class OPCController {
       return this.opcServesMap.keys();
     } catch (err) { throw Error(err.message); }
   }
+
+  /**
+   * Verifica se uma conexão foi criada
+   * @param {string} connName Nome de uma conexão existente. Use "connectToNewServer" para criar uma.
+   */
+  private getSpecificConnection(connName: string): OPCDA {
+    try {
+      if (this.opcServesMap.has(connName)) {
+        return this.opcServesMap.get(connName)!;
+      } else {
+        throw Error('Não há nenhuma conexão com Servidor OPC-DA criada');
+      }
+    } catch (err) { throw Error(err.message); }
+  }
+
+  /**
+   * Lista todos as TAG disponível em servidor OPC DA
+   * @param {string} connName Nome de uma conexão existente. Use "connectToNewServer" para criar uma.
+   */
+  async listAllServerItems(connName: string) {
+    try {
+      const opcda = this.getSpecificConnection(connName);
+      return await opcda.browseItems(false);
+    } catch (err) { throw Error(err.message); }
+  }
+
+  /**
+   * Cria um grupo de itens a ser usado em posterior leitura de dados para uma conexão existente.
+   * @param {string} connName Nome de uma conexão existente. Use "connectToNewServer" para criar uma.
+   * @param {string} name Nome do grupo para ser criado para introdução de itens.
+   * @param {[]} items Lista de itens para serem introduzidos. Use "listAllServerItems" para listar.
+   */
+  async createGroupItensConn(connName: string, name: string, items:[]) {
+    try {
+      const opcda = this.getSpecificConnection(connName);
+      await opcda.createGroup({name, varTable: items});
+    } catch (err) { throw Error(err.message); }
+  }
+
+  /**
+   * Lista todos os grupos de itens para uma conexão existente.
+   * @param {string} connName Nome de uma conexão existente. Use "connectToNewServer" para criar uma.
+   * TODO: NÂO TESTADO
+   */
+  async listAllConnGroups(connName: string) {
+    try {
+      const opcda = this.getSpecificConnection(connName);
+      // Pode ser adquirido pelo MAP em server
+      return await opcda.opcServer.getGroups(0); // Verificar oque é esse parametro, https://www.desigoccecosystem.com/WebClientApplication/Help/EngineeringHelp/en-US/13672511115.html
+    } catch (err) { throw Error(err.message); }
+  }
+
+  // /**
+  //  * Lê dados de itens em um grupo, em uma conexão existente.
+  //  * @param {string} groupName Nome do grupo para ser criado para introdução de itens.
+  //  * @param {string} connName Nome de uma conexão existente. Use "connectToNewServer" para criar uma.
+  //  */
+  // async readGroupItems(connName: string, groupName: string) {
+  //   try {
+  //     const opcda = this.getSpecificConnection(connName);
+  //     // return await opcda._opcServer.getGroupByName(groupName);
+  //     return await opcda.getValuesSync(groupName, 'asdasdasd');
+  //   } catch (err) { throw Error(err.message); }
+  // }
 }

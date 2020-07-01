@@ -3,8 +3,6 @@ import http from 'http';
 import app from '../../app';
 import ConsoleLog from '../../libs/ConsoleLog';
 
-// const debug = require('debug')('[DEBUG][START]'); // TODO: Verificar como usar 
-
 /**
  * Get port from environment and store in Express.
  */

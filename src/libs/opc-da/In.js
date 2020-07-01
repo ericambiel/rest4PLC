@@ -1,85 +1,110 @@
-// eslint-disable-next-line no-unused-vars
+import {EventEmitter} from 'events';
+
+import ConsoleLog from '../ConsoleLog';
+
+import Status from './Status';
+// Only for lint
+// eslint-disable-next-line import/no-cycle
 import Group from './Group';
 
-export default class In {
+export default class In extends EventEmitter {
 
   /**
    * @typedef InConfig
    * @type {Object}
-   * @property {Group} group
-   * @property {String} item
-   * @property {String} mode
-   * @property {boolean} diff
+   * @property {Group} group - Instancia do grupo a ser lido os itens.
+   * @property {String} item - Itens a serem lidos monitorados.
+   * @property {String} [mode='all'] - all, all-split, single.
+   * @property {boolean} [diff=true] - Reportar somente quando dados se alterarem.
    */
 
   /** @type {[]} */
-  statusVal;
+  statusValue;
+
+  /** @type {Status} */
+  status;
+
+  /** @type {ConsoleLog} */
+  debug;
 
   /**
+   * ---------- OPC-DA In ----------
    * @param {InConfig} inConfig
    */
   constructor(inConfig) {
+    super();
+    EventEmitter.call(this);
+
+    this.status = new Status();
+    this.debug = new ConsoleLog('debug:in');
+
+    if (!inConfig.mode) { inConfig.mode = 'all'; }
+    if (!inConfig.diff) { inConfig.diff = true; }
+
     this.inConfig = inConfig;
 
-    this.inConfig.group.on('__STATUS__', onGroupStatus);
-    this.status(generateStatus(this.group.getStatus(), this.statusVal));
-
+    this.inConfig.group.on('__STATUS__', (status) => this.onGroupStatus(status));
+    new ConsoleLog('info:in').printConsole(this.status.generateStatus(this.inConfig.group.getStatus(), this.statusValue));
 
     if (this.inConfig.diff) {
       switch (this.inConfig.mode) {
         case 'all-split':
-          this.group.on('__CHANGED__', onChanged);
-          break;
+          this.inConfig.group.on('__CHANGED__', (elm) => this.onChanged(elm)); break;
         case 'single':
-          this.group.on(this.inConfig.item, onData);
-          break;
+          this.inConfig.group.on(this.inConfig.item, (data) => this.onData(data)); break;
         case 'all':
         default:
-          this.group.on('__ALL_CHANGED__', onData);
+          this.inConfig.group.on('__ALL_CHANGED__', (data) => { this.onData(data); });
       }
     } else {
       switch (this.inConfig.mode) {
         case 'all-split':
-          this.group.on('__ALL__', onDataSplit);
-          break;
+          this.inConfig.group.on('__ALL__', (data) => this.onDataSplit(data)); break;
         case 'single':
-          this.group.on('__ALL__', onDataSelect);
-          break;
+          this.inConfig.group.on('__ALL__', (data) => this.onDataSelect(data)); break;
         case 'all':
         default:
-          this.group.on('__ALL__', onData);
+          this.inConfig.group.on('__ALL__', (data) => { this.onData(data); });
       }
     }
 
     this.on('close', (done) => {
-      this.group.removeListener('__ALL__', onDataSelect);
-      this.group.removeListener('__ALL__', onDataSplit);
-      this.group.removeListener('__ALL__', onData);
-      this.group.removeListener('__ALL_CHANGED__', onData);
-      this.group.removeListener('__CHANGED__', onChanged);
-      this.group.removeListener('__STATUS__', onGroupStatus);
-      this.group.removeListener(this.inConfig.item, onData);
+      this.inConfig.group.removeListener('__ALL__', (data) => this.onDataSelect(data));
+      this.inConfig.group.removeListener('__ALL__', (data) => this.onDataSplit(data));
+      this.inConfig.group.removeListener('__ALL__', (data) => this.onData(data));
+      this.inConfig.group.removeListener('__ALL_CHANGED__', (data) => this.onData(data));
+      this.inConfig.group.removeListener('__CHANGED__', (elm) => this.onChanged(elm));
+      this.inConfig.group.removeListener('__STATUS__', (status) => this.onGroupStatus(status));
+      this.inConfig.group.removeListener(this.inConfig.item, (data) => this.onData(data));
       done();
     });
   }
 
+  /**
+   *
+   * @param {Object} data Dado obtido por leitura de um item em um grupo
+   * @param {*} key
+   * @param {*} status Estado atual do Grupo
+   */
   sendMsg(data, key, status) {
     // if there is no data to be sent
     if (!data) { return; }
-    if (key === undefined) { key = ''; }
 
     let msg;
     // should be the case when mode == 'all'
-    if (key === '') {
-      const newData = new Array();
-      for (const key in data) {
-        newData.push({
-          errorCode: data[key].errorCode,
-          value: data[key].value,
-          quality: data[key].quality,
-          timestamp: data[key].timestamp,
-          topic: key,
-        });
+    if (key === undefined || key === '') {
+      const newData = [];
+
+      for (const obj in data) {
+        if (Object.prototype.hasOwnProperty.call(data, obj)) {
+          newData.push({
+            errorCode: data[obj].errorCode,
+            value: data[obj].value,
+            quality: data[obj].quality,
+            timestamp: data[obj].timestamp,
+            topic: obj,
+          });
+        }
       }
 
       msg = {
@@ -88,7 +113,8 @@ export default class In {
       };
     } else {
       if (data.errorCode !== 0) {
-            // TODO i18n and this status handling
+        // eslint-disable-next-line no-warning-comments
+        // TODO i18n and this status handling
         msg = {
           errorCode: data.errorCode,
           payload: data.value,
@@ -96,7 +122,7 @@ export default class In {
           timestamp: data.timestamp,
           topic: key,
         };
-        this.error(`Read of item '${key}' returned error: ${data.errorCode}`, msg);
+        new ConsoleLog('error:in').printConsole(`Read of item '${key}' returned error: ${data.errorCode}, ${msg}`);
         return;
       }
 
@@ -107,9 +133,9 @@ export default class In {
         topic: key,
       };
     }
-    this.statusVal = status !== undefined ? status : data;
-    this.send(msg);
-    this.status(generateStatus(this.group.getStatus(), this.statusVal));
+    this.statusValue = status === undefined ? data : status;
+    new ConsoleLog('info:in').printConsole(this.status.generateStatus(this.inConfig.group.getStatus(), this.statusValue));
+    console.log(msg);
   }
 
   onChanged(elm) {
@@ -123,14 +149,14 @@ export default class In {
   }
 
   onData(data) {
-    this.sendMsg(data, this.inConfig.mode == 'single' ? this.inConfig.item : '');
+    this.sendMsg(data, this.inConfig.mode === 'single' ? this.inConfig.item : '');
   }
 
   onDataSelect(data) {
-    onData(data[this.inConfig.item]);
+    this.onData(data[this.inConfig.item]);
   }
 
-  onGroupStatus(s) {
-    this.status(generateStatus(s.status, this.statusVal));
+  onGroupStatus(status) {
+    new ConsoleLog('info:in').printConsole(this.status.generateStatus(status.status, this.statusValue));
   }
 }

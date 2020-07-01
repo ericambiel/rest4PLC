@@ -4,6 +4,10 @@ import constants from 'node-opc-da/src/constants';
 
 import ConsoleLog from '../ConsoleLog';
 
+import In from './In';
+import Out from './Out';
+// Only for lint
+// eslint-disable-next-line import/no-cycle
 import Server from './Server';
 
 export default class Group extends EventEmitter {
@@ -50,6 +54,12 @@ export default class Group extends EventEmitter {
   /** @type {OPCSyncIO} */
   opcSyncIo;
 
+  /** @type {In} */
+  in;
+
+  /** @type {Out} */
+  out;
+
   /** @type {Number} */
   clientHandlePtr;
 
@@ -93,18 +103,14 @@ export default class Group extends EventEmitter {
   MIN_UPDATE_RATE = 100;
 
   /**
+   * ---------- OPC-DA Group ----------
    * @param {GrpConfig} grpConfig
    */
   constructor(grpConfig) {
     super();
     EventEmitter.call(this);
-
-    // this.on('close', async function(done) {
-    //   grpConfig.server.unregisterGroup(this);
-    //   await this.cleanup();
-    //   new ConsoleLog('info').printConsole("group cleaned");
-    //   done();
-    // });
+    // this.in = new In({group: this, item: grpConfig.varTable});
+    // this.out = new Out({group: this, item: grpConfig.varTable});
 
     if (!grpConfig.validade) { grpConfig.validate = false; }
     if (!grpConfig.active) { grpConfig.active = true; }
@@ -130,13 +136,12 @@ export default class Group extends EventEmitter {
   }
 
   /**
-   * @private
    * @param {OPCGroupStateManager} newGroup
    */
   async setup(newGroup) {
-    clearInterval(this.timer);
-
     try {
+
+      clearInterval(this.timer);
       this.opcGroupMgr = newGroup;
       this.opcItemMgr = await this.opcGroupMgr.getItemManager();
       this.opcSyncIo = await this.opcGroupMgr.getSyncIO();
@@ -171,6 +176,9 @@ export default class Group extends EventEmitter {
           new ConsoleLog('error:group').printConsole(`Error adding item '${itemsList[i].itemID}': ${this.errorMessage(resItem[0])} to group: ${this.grpConfig.name}`);
         }
       }
+
+      this.in = new In({group: this, item: this.grpConfig.varTable});
+      this.out = new Out({group: this, item: this.grpConfig.varTable});
     } catch (err) {
       const error = err || err.stack;
       new ConsoleLog('error:group').printConsole(`Error on setting up group: ${this.grpConfig.name}, erro: ${error}`);
@@ -187,6 +195,13 @@ export default class Group extends EventEmitter {
       this.timer = setInterval(() => this.doCycle(), this.updateRate);
       this.doCycle();
     }
+
+    this.on('close', async (done) => {
+      this.grpConfig.server.unregisterGroup(this);
+      await this.cleanup();
+      new ConsoleLog('info:group').printConsole("group cleaned");
+      done();
+    });
   }
 
   /** Apaga e finaliza todas as relações a instancia atual do grupo */
@@ -302,15 +317,6 @@ export default class Group extends EventEmitter {
   getStatus() {
     return this.status;
   }
-
-//   /**
-//    * @private
-//    * @param {OPCGroupStateManager} newOpcGroup
-//    */
-//   async updateInstance(newOpcGroup, config) {
-//     // await cleanup();
-//     await this.setup(newOpcGroup);
-//   }
 
   /**
   * Compares values for equality, includes special handling for arrays.
