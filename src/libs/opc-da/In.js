@@ -43,40 +43,46 @@ export default class In extends EventEmitter {
 
     this.inConfig = inConfig;
 
-    this.inConfig.group.on('__STATUS__', (status) => this.onGroupStatus(status));
-    new ConsoleLog('info:in').printConsole(this.status.generateStatus(this.inConfig.group.getStatus(), this.statusValue));
+    const onGroupStatus = (status) => this.onGroupStatus(status);
+    this.inConfig.group.on('__STATUS__', onGroupStatus);
+    // new ConsoleLog('info:in').printConsole(this.status.generateStatus(this.inConfig.group.getStatus(), this.statusValue));
+
+    // Assim é possível usar contexto de onde o evento foi emitido e remover listener pelo nome da função
+    const onChanged = (elm) => this.onChanged(elm);
+    const onData = (data) => this.onData(data);
+    const onDataSplit = (data) => this.onDataSplit(data);
+    const onDataSelect = (data) => this.onDataSelect(data);
 
     if (this.inConfig.diff) {
       switch (this.inConfig.mode) {
         case 'all-split':
-          this.inConfig.group.on('__CHANGED__', (elm) => this.onChanged(elm)); break;
+          this.inConfig.group.on('__CHANGED__', onChanged); break;
         case 'single':
-          this.inConfig.group.on(this.inConfig.item, (data) => this.onData(data)); break;
+          this.inConfig.group.on(this.inConfig.item, onData); break;
         case 'all':
         default:
-          this.inConfig.group.on('__ALL_CHANGED__', (data) => { this.onData(data); });
+          this.inConfig.group.on('__ALL_CHANGED__', onData);
       }
     } else {
       switch (this.inConfig.mode) {
         case 'all-split':
-          this.inConfig.group.on('__ALL__', (data) => this.onDataSplit(data)); break;
+          this.inConfig.group.on('__ALL__', onDataSplit); break;
         case 'single':
-          this.inConfig.group.on('__ALL__', (data) => this.onDataSelect(data)); break;
+          this.inConfig.group.on('__ALL__', onDataSelect); break;
         case 'all':
         default:
-          this.inConfig.group.on('__ALL__', (data) => { this.onData(data); });
+          this.inConfig.group.on('__ALL__', onData);
       }
     }
 
-    this.on('close', (done) => {
-      this.inConfig.group.removeListener('__ALL__', (data) => this.onDataSelect(data));
-      this.inConfig.group.removeListener('__ALL__', (data) => this.onDataSplit(data));
-      this.inConfig.group.removeListener('__ALL__', (data) => this.onData(data));
-      this.inConfig.group.removeListener('__ALL_CHANGED__', (data) => this.onData(data));
-      this.inConfig.group.removeListener('__CHANGED__', (elm) => this.onChanged(elm));
-      this.inConfig.group.removeListener('__STATUS__', (status) => this.onGroupStatus(status));
-      this.inConfig.group.removeListener(this.inConfig.item, (data) => this.onData(data));
-      done();
+    this.on('close', () => {
+      this.inConfig.group.removeListener('__ALL__', onDataSelect);
+      this.inConfig.group.removeListener('__ALL__', onDataSplit);
+      this.inConfig.group.removeListener('__ALL__', onData);
+      this.inConfig.group.removeListener('__ALL_CHANGED__', onData);
+      this.inConfig.group.removeListener('__CHANGED__', onChanged);
+      this.inConfig.group.removeListener('__STATUS__', onGroupStatus);
+      this.inConfig.group.removeListener(this.inConfig.item, onData);
     });
   }
 
@@ -134,7 +140,7 @@ export default class In extends EventEmitter {
       };
     }
     this.statusValue = status === undefined ? data : status;
-    new ConsoleLog('info:in').printConsole(this.status.generateStatus(this.inConfig.group.getStatus(), this.statusValue));
+    // new ConsoleLog('info:in').printConsole(this.status.generateStatus(this.inConfig.group.getStatus(), this.statusValue));
     console.log(msg);
   }
 

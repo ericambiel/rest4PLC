@@ -29,8 +29,9 @@ export default class OPCController {
         this.opcServesMap.set(connName, new OPCDA(
           address, domain, user, password, clsid,
         ));
-        await this.opcServesMap.get(connName)!.setup().catch((err) => { throw err; });
-        return 'Conexão sendo Criada...';
+        return await this.opcServesMap.get(connName)!.setup()
+          .then(() => { return 'Conexão sendo Criada...'; })
+          .catch((err) => { throw err; });
       }
     } catch (err) { throw Error(err.message); }
   }

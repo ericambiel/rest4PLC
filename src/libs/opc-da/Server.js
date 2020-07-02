@@ -89,7 +89,7 @@ export default class Server extends EventEmitter {
   }
 
   async onComServerError(err) {
-    new ConsoleLog('error:server').printConsole(`${this.errorMessage(err)}`);
+    // new ConsoleLog('error:server').printConsole(`${this.errorMessage.getErrorMessage(err)}`);
     switch (err) {
       case 0x00000005: this.errorMessage.getErrorMessageAndPrint(err);
         return;
@@ -101,7 +101,7 @@ export default class Server extends EventEmitter {
         return;
       default:
         new ConsoleLog('warn:server').printConsole('Trying to reconnect...');
-        await this.setup().catch(this.onComServerError);
+        await this.setup().catch((error) => this.onComServerError(error));
     }
   }
 
@@ -122,35 +122,41 @@ export default class Server extends EventEmitter {
       // Cria conexão COM com servidor Microsoft
       this.comServer = new ComServer(new Clsid(this.connOpts.clsid), this.connOpts.address, this.comSession);
 
-      // this.comServer.on('e_classnotreg', () => {
-      //   new ConsoleLog('error').printConsole("opc-da.error.classnotreg");
-      // });
-
-      // this.comServer.on("disconnected", () => {
-      //   this.onComServerError(ConsoleLog('error').printConsole("opc-da.error.disconnected"));
-      // });
-
-      // this.comServer.on("e_accessdenied", () => {
-      //   new ConsoleLog('error').printConsole("opc-da.error.accessdenied");
-      // });
-
-      this.comServer.on('error', (err) => this.onComServerError(err));
-
-      await this.comServer.init();
-
-      this.comObject = await this.comServer.createInstance();
-
-      // Cria conexão OPC-DA com servidor COM
-      this.opcServer = new OPCServer();
-      await this.opcServer.init(this.comObject);
-      // Caso restarte iniciado por Group recria grupos para a conexão.
-      this.groups.forEach(async (group, key) => {
-        const oPCGroupStateManager = await this.opcServer.addGroup(key, group.grpConfig);
-        new ConsoleLog('info:server').printConsole(`setup for group: ${key}`);
-        await group.setup(oPCGroupStateManager);
+      this.comServer.on("disconnected", () => {
+        this.onComServerError(new ConsoleLog('error:server').printConsole("Disconnected"));
       });
 
-      this.updateStatus('online');
+      this.comServer.on('e_classnotreg', () => {
+        new ConsoleLog('error').printConsole("Classnotreg");
+      });
+
+      this.comServer.on("e_accessdenied", () => {
+        new ConsoleLog('error').printConsole("Accessdenied");
+      });
+
+      // this.comServer.on('error', (err) => {
+      //   this.onComServerError(err);
+      // });
+
+      await this.comServer.init()
+        .then(async () => {
+          this.comObject = await this.comServer.createInstance();
+
+          // Cria conexão OPC-DA com servidor COM
+          this.opcServer = new OPCServer();
+          await this.opcServer.init(this.comObject);
+        })
+        .then(() => {
+          // Caso restarte iniciado por Group recria grupos para a conexão.
+          this.groups.forEach(async (group, key) => {
+            const oPCGroupStateManager = await this.opcServer.addGroup(key, group.grpConfig);
+            new ConsoleLog('info:server').printConsole(`setup for group: ${key}`);
+            await group.setup(oPCGroupStateManager);
+          });
+
+          this.updateStatus('online');
+        })
+        .catch((err) => { throw err; });
     } catch (err) {
       this.onComServerError(err);
       throw err;
@@ -186,19 +192,19 @@ export default class Server extends EventEmitter {
       new ConsoleLog('info:server').printConsole('Cleaning Up');
       this.isOnCleanUp = true;
 
-      // // cleanup groups first
-      // // Necessário Map para Array para usar Promise All
-      // new ConsoleLog('info:server').printConsole('Cleaning groups...');
-      // const arrayGroups = [];
-      // this.groups.forEach((group) => {
-      //   arrayGroups.push(group);
-      // });
-      // await Promise.all(arrayGroups.map((group) => {
-      //   return group.cleanup()
-      //     .catch((err) => { throw err; });
-      // }))
-      //   .catch((err) => { throw err; });
-      // new ConsoleLog('info:server').printConsole('Cleaned Groups');
+      // cleanup groups first
+      // Necessário Map para Array para usar Promise All
+      new ConsoleLog('info:server').printConsole('Cleaning groups...');
+      const arrayGroups = [];
+      this.groups.forEach((group) => {
+        arrayGroups.push(group);
+      });
+      await Promise.all(arrayGroups.map((group) => {
+        return group.cleanup()
+          .catch((err) => { throw err; });
+      }))
+        .catch((err) => { throw err; });
+      new ConsoleLog('info:server').printConsole('Cleaned Groups');
 
       if (this.opcServer) {
         new ConsoleLog('info:server').printConsole('Cleaning Server');

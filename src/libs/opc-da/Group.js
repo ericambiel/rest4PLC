@@ -196,11 +196,10 @@ export default class Group extends EventEmitter {
       this.doCycle();
     }
 
-    this.on('close', async (done) => {
+    this.on('close', async () => {
       this.grpConfig.server.unregisterGroup(this);
       await this.cleanup();
       new ConsoleLog('info:group').printConsole("group cleaned");
-      done();
     });
   }
 
@@ -214,6 +213,10 @@ export default class Group extends EventEmitter {
       this.clientHandlePtr = 1;
       this.clientHandles.length = 0;
       this.serverHandles = [];
+
+      // Limpa listeners de In, Out
+      this.in.emit('close');
+      this.out.emit('close');
 
       if (this.opcSyncIo) {
         await this.opcSyncIo.end()
@@ -259,7 +262,8 @@ export default class Group extends EventEmitter {
         .catch((err) => this.cycleError(err));
     } else {
       this.readDeferred++;
-      if (this.readDeferred > 15) {
+      // QTD de leituras antes de se reconectar, default: 15
+      if (this.readDeferred > 10) {
         new ConsoleLog('warn:group').printConsole(`Sem resposta para itens do grupo: ${this.grpConfig.name}`);
         clearInterval(this.timer);
         // since we have no good way to know if there is a network problem

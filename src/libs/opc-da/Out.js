@@ -33,23 +33,25 @@ export default class Out extends EventEmitter {
     super();
     EventEmitter.call(this);
 
+    const onGroupStatus = (status) => this.onGroupStatus(status);
+
     this.status = new Status();
     this.outConfig = outConfig;
+    this.outConfig.group.on('__STATUS__', onGroupStatus);
 
-    this.outConfig.group.on('__STATUS__', (status) => this.onGroupStatus(status));
-    new ConsoleLog('info:out').printConsole(this.status.generateStatus(this.outConfig.group.getStatus(), this.statusValue));
+    // new ConsoleLog('info:out').printConsole(this.status.generateStatus(this.outConfig.group.getStatus(), this.statusValue));
 
-    this.on('input', (msg) => this.onNewMsg(msg));
+    const onNewMsg = (msg) => this.onNewMsg(msg);
+    this.on('input', onNewMsg);
 
-    this.on('close', (done) => {
-      this.outConfig.group.removeListener('__STATUS__', (status) => this.onGroupStatus(status));
-      done();
+    this.on('close', () => {
+      this.outConfig.group.removeListener('__STATUS__', onGroupStatus);
     });
 
   }
 
   onGroupStatus(status) {
-    new ConsoleLog('info:in').printConsole(this.status.generateStatus(status.status, this.statusValue));
+    new ConsoleLog('info:out').printConsole(this.status.generateStatus(status.status, this.statusValue));
   }
 
   onNewMsg(msg) {
@@ -62,6 +64,6 @@ export default class Out extends EventEmitter {
 
     this.statusValue = writeObj.val;
     this.outConfig.group.writeVar(writeObj);
-    new ConsoleLog('info:in').printConsole(this.status.generateStatus(this.outConfig.group.getStatus(), this.statusValue));
+    // new ConsoleLog('info:out').printConsole(this.status.generateStatus(this.outConfig.group.getStatus(), this.statusValue));
   }
 }
